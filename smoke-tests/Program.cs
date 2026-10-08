@@ -215,7 +215,8 @@ namespace ApkShellextSmokeTests {
                     Color left = bitmap.GetPixel(4, 4);
                     Color right = bitmap.GetPixel(20, 4);
                     if (left.R < 200 || left.G > 70 || right.G < 200 || right.R > 70)
-                        throw new Exception("Nested VectorDrawable groups or transforms were ignored");
+                        throw new Exception("Nested VectorDrawable colors/transform wrong: left=" +
+                            left + ", right=" + right);
                 }
             }
         }
