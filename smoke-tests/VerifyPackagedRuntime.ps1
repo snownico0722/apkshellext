@@ -34,57 +34,60 @@ try {
         throw 'Missing or duplicate SharpZipLib assembly in release.'
     }
 
-    # Exercise loading from an isolated directory, not the build output.
-    $assembly = [Reflection.Assembly]::LoadFrom($mainDll)
+    # Exercise the assembly from an isolated directory, not the build output.
     [IO.File]::WriteAllText((Join-Path $fixtureDir 'androidmanifest.xml'), 'fixture')
     [IO.File]::WriteAllText((Join-Path $fixtureDir 'resources.arsc'), 'fixture')
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $apkPath = Join-Path $workDir 'fixture.apk'
     [IO.Compression.ZipFile]::CreateFromDirectory($fixtureDir, $apkPath)
 
-    $apkType = $assembly.GetType('ApkQuickReader.ApkReader', $true)
-    $constructor = $apkType.GetConstructor([Type[]]@([string], [string]))
-    if ($null -eq $constructor) { throw 'The public ApkReader(string, string) constructor was not found.' }
-    $reader = $constructor.Invoke([object[]]@($apkPath, [string]::Empty))
-    try {
-        if ($null -eq $reader.Type) { throw 'APK reader did not initialize.' }
-    } finally {
-        if ($null -ne $reader) { $reader.Dispose() }
-    }
+    # Run strongly typed reflection from .NET Framework, avoiding PowerShell
+    # PSObject wrappers being passed to constructors expecting System.String.
+    $probeSource = @'
+using System;
+using System.Reflection;
+using System.Drawing;
+using System.Drawing.Drawing2D;
 
-    # Android VectorDrawable rendering uses the new Svg NuGet assembly.
-    $vectorType = $assembly.GetType('ApkShellext2.VectorDrawableRender', $true)
-    $path = $vectorType.GetMethod('Convert2Path').Invoke($null, [object[]]@('M0,0 L8,8 L8,0 Z'))
-    try {
-        if ($null -eq $path -or $path.PointCount -lt 3) {
-            throw 'VectorDrawable parsing is unavailable from the extracted release.'
+public static class ApkShellextPackageProbe {
+    public static void Verify(string mainDll, string apkFile) {
+        Assembly assembly = Assembly.LoadFrom(mainDll);
+        Type apkType = assembly.GetType("ApkQuickReader.ApkReader", true);
+        using (IDisposable reader = (IDisposable)Activator.CreateInstance(
+            apkType, new object[] { apkFile, "" })) {
+            if (apkType.GetProperty("Type").GetValue(reader, null) == null)
+                throw new Exception("The standalone APK reader failed to initialize.");
         }
-    } finally {
-        if ($null -ne $path) { $path.Dispose() }
-    }
 
-    # Decode a real 2x2 lossless WebP using both 32-bit and 64-bit runtimes.
-    $webPType = $assembly.GetType('WebPWrapper.WebP', $true)
-    $webp = [Activator]::CreateInstance($webPType)
-    try {
-        $version = $webPType.GetMethod('GetVersion').Invoke($webp, $null)
-        if ($version -ne '1.6.0') { throw "Unexpected packaged libwebp version: $version" }
-        [byte[]]$webpBytes = [Convert]::FromBase64String('UklGRh4AAABXRUJQVlA4TBEAAAAvAUAAAAfQyd40uf+BiOh/AAA=')
-        $method = $webPType.GetMethod('Decode', [Type[]]@([byte[]]))
-        if ($null -eq $method) { throw 'WebP decoder method is unavailable.' }
-        $args = New-Object 'object[]' 1
-        $args[0] = $webpBytes
-        $bitmap = $method.Invoke($webp, $args)
-        try {
-            if ($null -eq $bitmap -or $bitmap.Width -ne 2 -or $bitmap.Height -ne 2) {
-                throw 'Packaged WebP decoder returned an invalid bitmap.'
+        Type vectorType = assembly.GetType("ApkShellext2.VectorDrawableRender", true);
+        using (GraphicsPath path = (GraphicsPath)vectorType.GetMethod(
+            "Convert2Path").Invoke(null, new object[] { "M0,0 L8,8 L8,0 Z" })) {
+            if (path == null || path.PointCount < 3)
+                throw new Exception("Standalone SVG path parsing failed.");
+        }
+
+        Type webpType = assembly.GetType("WebPWrapper.WebP", true);
+        using (IDisposable webp = (IDisposable)Activator.CreateInstance(webpType)) {
+            string version = (string)webpType.GetMethod("GetVersion").Invoke(webp, null);
+            if (version != "1.6.0")
+                throw new Exception("Unexpected standalone libwebp version: " + version);
+
+            // 2x2 lossless WebP image, exercising the decode P/Invoke path.
+            byte[] webpBytes = Convert.FromBase64String(
+                "UklGRh4AAABXRUJQVlA4TBEAAAAvAUAAAAfQyd40uf+BiOh/AAA=");
+            MethodInfo decode = webpType.GetMethod("Decode", new Type[] { typeof(byte[]) });
+            if (decode == null)
+                throw new Exception("WebP decoder entrypoint is unavailable.");
+            using (Bitmap bitmap = (Bitmap)decode.Invoke(webp, new object[] { webpBytes })) {
+                if (bitmap == null || bitmap.Width != 2 || bitmap.Height != 2)
+                    throw new Exception("Standalone WebP decoder returned invalid pixels.");
             }
-        } finally {
-            if ($null -ne $bitmap) { $bitmap.Dispose() }
         }
-    } finally {
-        if ($null -ne $webp) { $webp.Dispose() }
     }
+}
+'@
+    Add-Type -TypeDefinition $probeSource -ReferencedAssemblies 'System.Drawing.dll' -ErrorAction Stop
+    [ApkShellextPackageProbe]::Verify([string]$mainDll, [string]$apkPath)
 
     Write-Host "PASS: extracted APK/ZIP, SVG and WebP runtime ($([IntPtr]::Size * 8)-bit)"
 } finally {
