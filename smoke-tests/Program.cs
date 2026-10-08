@@ -3,6 +3,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Drawing;
 using System.Drawing.Imaging;
+using System.Drawing.Drawing2D;
 using System.Reflection;
 using ApkQuickReader;
 using ApkShellext2;
@@ -17,6 +18,7 @@ namespace ApkShellextSmokeTests {
                 CheckSuccessfulReadDoesNotRemainOpen(Path.Combine(dir, "valid.apk"));
                 CheckInvalidBinaryManifestTerminates(Path.Combine(dir, "bad-manifest.apk"));
                 CheckFirstEntryUppercasePng(Path.Combine(dir, "first-entry.apk"));
+                CheckVectorPathRendering();
                 CheckCallerStreamIsNotClosed();
                 CheckNestedAndroidPackages(dir);
                 CheckMalformedLegacyPackages(dir);
@@ -99,6 +101,15 @@ namespace ApkShellextSmokeTests {
             }
 
             using (var exclusive = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) {
+            }
+        }
+
+        private static void CheckVectorPathRendering() {
+            // Verify the updated SVG parser still supplies path geometry to
+            // Android VectorDrawable rendering (not just that it compiles).
+            using (GraphicsPath path = VectorDrawableRender.Convert2Path("M0,0 L8,8 L8,0 Z")) {
+                if (path == null || path.PointCount < 3)
+                    throw new Exception("SVG vector path was not rendered after the Svg upgrade");
             }
         }
 
