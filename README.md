@@ -7,7 +7,7 @@ A Windows shell extension supporting icon for files of
 * .ipa (iOS app package)
 * .appx .appxbundle (Windows phone 8.1/10 app package, .xap is not supported)
 
-This is the code repository, please visit the project page http://apkshellext.com or go to [release](https://github.com/kkguo/apkshellext/releases) for download.
+This is the code repository, please visit the project page [the maintained fork](https://github.com/snownico0722/apkshellext) or go to [release](https://github.com/snownico0722/apkshellext/releases) for download.
 
 #### Help this project
  * Become a Sponsor, I will be more glad to update your request.
@@ -62,4 +62,6 @@ Originally this project hosted on [GoogleCode](code.google.com/p/apkshellext), n
 ### Maintainer fork: building and installing
 
 Development and release build instructions for this fork are in [DEVELOPMENT.md](DEVELOPMENT.md).
+The optional QR download service is **not installed by the normal shell extension installer**. If configured separately, it shares only files explicitly staged under `%ProgramData%\\ApkShellext2\\Share` and uses random per-download links.
+
 Use the original `install.bat` and `uninstall.bat` from a permanent extracted release folder. They register/unregister the shell handlers for both Windows bitnesses without installing a background update service. Existing icons may need an Explorer restart to refresh.

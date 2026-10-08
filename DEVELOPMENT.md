@@ -11,7 +11,9 @@ This fork follows the upstream **ApkShellext2** branch. Work is incremental: **k
 - Before packaging, run `pwsh -File scripts/build-libwebp.ps1` to replace the old WebP submodule DLLs with pinned upstream libwebp **1.6.0** (both x86 and x64). Packaging now checks both DLL versions and rejects the old binaries. The DLLs are built from pinned official source and use a statically linked `sharpyuv` to avoid extra native runtime dependencies.
 - The service project remains in the repository; it can be built explicitly with `msbuild ApkShellextService/apkShellextService.csproj /p:Configuration=Release`. Normal builds do not install/start the service.
 
-SharpZipLib 1.4.2 is restored as a managed NuGet dependency; release archives include the resolved runtime DLLs alongside the Shell assembly. Use `/restore` on Windows builds.\n\nThe original installer/uninstaller scripts remain available. They now run both 32-bit and 64-bit `RegAsm.exe` when present, and fail clearly if registration cannot complete. Install from a permanent extracted folder; uninstall before moving it. Installing alongside an existing copy of ApkShellext2 is not supported because they register the same COM handler IDs.
+SharpZipLib 1.4.2 is restored as a managed NuGet dependency; release archives include the resolved runtime DLLs alongside the Shell assembly. Use `/restore` on Windows builds.
+
+The original installer/uninstaller scripts remain available. They now run both 32-bit and 64-bit `RegAsm.exe` when present, and fail clearly if registration cannot complete. Install from a permanent extracted folder; uninstall before moving it. Installing alongside an existing copy of ApkShellext2 is not supported because they register the same COM handler IDs.
 
 The original project referenced an untracked PFX and stale Google.Protobuf packages. This fork carries a dedicated strong-name `.snk` file for reproducible COM registration; **strong naming does not mean Authenticode publisher signing**. The unused Protobuf project references were removed, without deleting parser functionality.
 
@@ -23,4 +25,8 @@ The original project referenced an untracked PFX and stale Google.Protobuf packa
 4. Add XAPK/APKS/APKM handlers independently; never paste code from other forks.
 5. Measure thumbnail/icon performance before adding caches; make installation/uninstallation reversible.
 
-Please keep patches small and reviewable. For shell behavior validate on Windows with representative APK, IPA and APPX samples, file renames/deletes after failed reads, and install/uninstall. GitHub CI only compiles; it cannot prove Explorer stability.
+Please keep patches small and reviewable. The Windows CI builds and tests the parser, compiles libwebp x86/x64, unpacks the release archive, and **installs/uninstalls the actual COM handlers**. It then tests x64 and x86 Shell icon, thumbnail, info-tip and right-click interfaces on Windows Server 2022 and 2025, using deterministic fixtures for APK, XAPK/APKS/APKM, IPA, APPX, APPXBUNDLE, corrupted packages, in-progress downloads, GDI handle reuse and file deletion.
+
+Targeted regression cases now cover Android binary boolean attributes, malformed resource chunk lengths, nested VectorDrawable groups, desktop APPX without `PhoneIdentity`, default thumbnail and menu settings, actual broken-file menu commands, and first-run update version parsing. The optional legacy HTTP service is built and separately tested on Windows; it only shares files staged under `%ProgramData%\\ApkShellext2\\Share` through randomly generated download tokens, and the normal installer does not start or install that service.
+
+The COM integration test entrypoint is `smoke-tests/Invoke-ShellIntegration.ps1`. It registers Shell extensions system-wide and should only run with administrator privileges on a disposable Windows VM. Each architecture and scenario runs in a separate STA process with a timeout. CI still does **not** automate the interactive Explorer/Chrome user interfaces, Windows 11 client UI, or validate arbitrary modern real-world app packages.

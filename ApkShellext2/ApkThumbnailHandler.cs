@@ -30,7 +30,7 @@ namespace ApkShellext2 {
             //if (!Settings.Default.EnableThumbnail) {
             //    return null;
             //}
-            if (Utility.GetSetting("EnableThumbnail") != "True") {
+            if (Utility.GetSetting("EnableThumbnail", "True") != "True") {
                 return null;
             }
 
@@ -50,7 +50,7 @@ namespace ApkShellext2 {
 
                 Log("Got icon, resizing...");
                 //if (Settings.Default.ShowOverLayIcon) {
-                if (Utility.GetSetting("ShowOverlayIcon")=="True") {
+                if (Utility.GetSetting("ShowOverLayIcon")=="True") {
                     Log("Draw overlay");
                     m_icon = Utility.CombineBitmap(m_icon,
                            Utility.AppTypeIcon(AppPackageReader.AppType.AndroidApp),

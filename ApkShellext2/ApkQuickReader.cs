@@ -1375,147 +1375,130 @@ namespace ApkQuickReader
         }
 
         private Bitmap parseLayerDrawable(XmlNode node, Size size) {
+            var layers = new List<Bitmap>();
             try {
-                XmlNodeList nl = node.SelectNodes("/layer-list/item");
-                List<Bitmap> bitmapList = new List<Bitmap>(nl.Count);
-                foreach (XmlElement e in nl) {
-                    if (e.HasAttribute("drawable")) {
-                        Bitmap b = getImage(e.GetAttribute("drawable"), size);
-                        bitmapList.Add(b);
-                    } else {
-                        XmlElement shape = (XmlElement)e.SelectSingleNode("shape");
-                        if (shape != null) {
-                            bitmapList.Add(parseShape(shape, size));
-                        } else {
-                            throw new Exception("unrecorgnized element in layer-list.");
-                        }
+                foreach (XmlElement item in node.SelectNodes("/layer-list/item")) {
+                    if (item.HasAttribute("drawable"))
+                        layers.Add(getImage(item.GetAttribute("drawable"), size));
+                    else {
+                        XmlElement shape = (XmlElement)item.SelectSingleNode("shape");
+                        if (shape == null)
+                            throw new InvalidDataException("Unsupported layer-list item");
+                        layers.Add(parseShape(shape, size));
                     }
                 }
-                Bitmap bmp = new Bitmap(size.Width, size.Height);
-                Graphics g = Graphics.FromImage(bmp);
-                foreach (Bitmap b in bitmapList) {
-                    g.DrawImage(Utility.ResizeBitmap(b, new Size(bmp.Width, bmp.Height)), 0, 0);
+
+                Bitmap result = new Bitmap(size.Width, size.Height);
+                try {
+                    using (Graphics g = Graphics.FromImage(result)) {
+                        foreach (Bitmap layer in layers) {
+                            if (layer == null) continue;
+                            using (Bitmap scaled = Utility.ResizeBitmap(layer, size))
+                                g.DrawImage(scaled, 0, 0);
+                        }
+                    }
+                    return result;
+                } catch {
+                    result.Dispose();
+                    throw;
                 }
-                return bmp;
-            } catch (Exception ex) {
-                throw new Exception(ex.Message + "\nError happens during parsing layer-list: " + node.InnerXml);
+            } finally {
+                foreach (Bitmap layer in layers)
+                    if (layer != null) layer.Dispose();
             }
         }
 
         private Bitmap parseVectorDrawable(XmlNode node, Size size) {
-            try {
-                XmlElement vector = (XmlElement)node.SelectSingleNode("/vector");
-                float viewportWidth = 0, viewportHeight = 0;
-                int width = 0, height = 0;
-                GraphicsUnit units = GraphicsUnit.Display;
-                if (vector.HasAttribute("viewportWidth")) {
-                    viewportWidth = Convert.ToSingle(vector.GetAttribute("viewportWidth"));
-                }
-                if (vector.HasAttribute("viewportHeight")) {
-                    viewportHeight = Convert.ToSingle(vector.GetAttribute("viewportHeight"));
-                    if (viewportWidth == 0) viewportWidth = viewportHeight;
-                } else {
-                    viewportHeight = viewportWidth;
-                }
-                if (vector.HasAttribute("width")) {
-                    string ori = vector.GetAttribute("width");
-                    try {
-                        width = int.Parse(ori);
-                    } catch {
-                        string strunit = ori.Substring(ori.Length -2);
-                        width = int.Parse(ori.Substring(0, ori.Length - 2));
-                        switch (strunit) {
-                            case "dp":
-                                units = GraphicsUnit.Display;
-                                break;
-                            case "in":
-                                units = GraphicsUnit.Inch;
-                                break;
-                            case "mm":
-                                units = GraphicsUnit.Millimeter;
-                                break;
-                            case "px":
-                                units = GraphicsUnit.Pixel;
-                                break;
-                            case "sp":
-                                units = GraphicsUnit.World;
-                                break;
-                            case "pt":
-                                units = GraphicsUnit.Point;
-                                break;
-                            default:
-                                units = GraphicsUnit.Display;
-                                break;
-                        }
-                    }
-                    //Not finished yet
-                }
-                Bitmap b = new Bitmap((int)viewportWidth, (int)viewportHeight);
-                using (Graphics g = Graphics.FromImage(b)) {
-                    XmlElement group = (XmlElement)vector.SelectSingleNode("group");
-                    XmlNodeList nl = (group != null) ? group.SelectNodes("path") :
-                                                      vector.SelectNodes("path");
-                    foreach (XmlElement elem in nl) {
-                        string pathdata = elem.GetAttribute("pathData");
-                        GraphicsPath gpath = VectorDrawableRender.Convert2Path(pathdata);
-                        Brush fill = null;
-                        if (elem.HasAttribute("fillColor")) {
-                            string fillcolor = elem.GetAttribute("fillColor");
-                            if (fillcolor.EndsWith(".xml")) {//gradien
-                                fill = parseGradient(fillcolor);
-                            } else {
-                                fill = new SolidBrush(stringToColor(elem.GetAttribute("fillColor")));
-                            }
-                        } else {
-                            fill = new SolidBrush(System.Drawing.Color.Black);
-                        }
-                        g.FillPath(fill, gpath);
-                        //g.DrawPath(new Pen(fill, 2), path);                    
-                    }
-                }
-                return Utility.ResizeBitmap(b,size);
-            } catch (Exception ex) {
-                throw new Exception(ex.Message + "\nError happens during parsing vectordrawable: " + node.InnerXml);
+            XmlElement vector = (XmlElement)node.SelectSingleNode("/vector");
+            if (vector == null) throw new InvalidDataException("Missing vector root");
+            float viewportWidth = float.Parse(vector.GetAttribute("viewportWidth"),
+                CultureInfo.InvariantCulture);
+            float viewportHeight = float.Parse(vector.GetAttribute("viewportHeight"),
+                CultureInfo.InvariantCulture);
+            if (viewportWidth <= 0 || viewportHeight <= 0)
+                throw new InvalidDataException("Invalid vector viewport");
+
+            using (Bitmap image = new Bitmap((int)Math.Ceiling(viewportWidth),
+                (int)Math.Ceiling(viewportHeight))) {
+                using (Graphics g = Graphics.FromImage(image))
+                    DrawVectorElements(g, vector);
+                return Utility.ResizeBitmap(image, size);
             }
         }
-        
+
+        private static float VectorFloat(XmlElement element, string name, float fallback) {
+            if (!element.HasAttribute(name)) return fallback;
+            return float.Parse(element.GetAttribute(name), CultureInfo.InvariantCulture);
+        }
+
+        // Visit paths from every group, including nested groups. Keep group
+        // transformations local so sibling vector elements are not displaced.
+        private void DrawVectorElements(Graphics g, XmlElement parent) {
+            foreach (XmlNode childNode in parent.ChildNodes) {
+                XmlElement child = childNode as XmlElement;
+                if (child == null) continue;
+                if (child.LocalName == "group") {
+                    GraphicsState state = g.Save();
+                    try {
+                        float pivotX = VectorFloat(child, "pivotX", 0);
+                        float pivotY = VectorFloat(child, "pivotY", 0);
+                        using (Matrix transform = new Matrix()) {
+                            transform.Translate(-pivotX, -pivotY, MatrixOrder.Append);
+                            transform.Scale(VectorFloat(child, "scaleX", 1),
+                                VectorFloat(child, "scaleY", 1), MatrixOrder.Append);
+                            transform.Rotate(VectorFloat(child, "rotation", 0), MatrixOrder.Append);
+                            transform.Translate(pivotX + VectorFloat(child, "translateX", 0),
+                                pivotY + VectorFloat(child, "translateY", 0), MatrixOrder.Append);
+                            g.MultiplyTransform(transform, MatrixOrder.Append);
+                        }
+                        DrawVectorElements(g, child);
+                    } finally {
+                        g.Restore(state);
+                    }
+                } else if (child.LocalName == "path") {
+                    using (GraphicsPath path = VectorDrawableRender.Convert2Path(
+                        child.GetAttribute("pathData"))) {
+                        Brush fill = child.HasAttribute("fillColor")
+                            ? (child.GetAttribute("fillColor").EndsWith(".xml", StringComparison.OrdinalIgnoreCase)
+                                ? parseGradient(child.GetAttribute("fillColor"))
+                                : (Brush)new SolidBrush(stringToColor(child.GetAttribute("fillColor"))))
+                            : new SolidBrush(Color.Black);
+                        if (fill != null) {
+                            using (fill)
+                                g.FillPath(fill, path);
+                        }
+                    }
+                }
+            }
+        }
+
         private Bitmap parseAdaptiveIcon(XmlNode node, Size size) {
-            /// Get adaptive - icon
-            /// 
-            /*
-            <?xml version="1.0" encoding="utf-8"?>
-            <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-            <background android:drawable="@drawable/ic_launcher_background" />
-            <foreground android:drawable="@drawable/ic_launcher_foreground" />
-            </adaptive-icon>
-            */
+            XmlElement background = (XmlElement)node.SelectSingleNode("/adaptive-icon/background");
+            XmlElement foreground = (XmlElement)node.SelectSingleNode("/adaptive-icon/foreground");
+            Bitmap result = new Bitmap(size.Width, size.Height);
             try {
-                XmlElement elem = (XmlElement)node.SelectSingleNode("/adaptive-icon/background");
-                Bitmap b = null, f = null;
-                Bitmap bmp = new Bitmap(size.Width, size.Height);
-                Graphics g = Graphics.FromImage(bmp);
-                if (elem.HasAttribute("drawable")) {
-                    b = getImage(elem.GetAttribute("drawable"), size);
-                    if (b != null)
-                        g.DrawImage(b, 0, 0);
-                    else {
-                        Color c = stringToColor(elem.GetAttribute("drawable"));
-                        g.FillRectangle(new SolidBrush(c), 0, 0, bmp.Width, bmp.Height);
-                    }
+                using (Graphics graphics = Graphics.FromImage(result)) {
+                    DrawAdaptiveLayer(graphics, background, size);
+                    DrawAdaptiveLayer(graphics, foreground, size);
                 }
-                elem = (XmlElement)node.SelectSingleNode("/adaptive-icon/foreground");
-                if (elem.HasAttribute("drawable")) {
-                    f = getImage(elem.GetAttribute("drawable"), size);
-                    if (f != null)
-                        g.DrawImage(f, 0, 0);
-                    else {
-                        Color c = stringToColor(elem.GetAttribute("drawable"));
-                        g.FillRectangle(new SolidBrush(c), 0, 0, bmp.Width, bmp.Height);
-                    }
+                return result;
+            } catch {
+                result.Dispose();
+                throw;
+            }
+        }
+
+        private void DrawAdaptiveLayer(Graphics graphics, XmlElement layer, Size size) {
+            if (layer == null || !layer.HasAttribute("drawable"))
+                return;
+            string drawable = layer.GetAttribute("drawable");
+            using (Bitmap bitmap = getImage(drawable, size)) {
+                if (bitmap != null) {
+                    graphics.DrawImage(bitmap, 0, 0);
+                } else {
+                    using (Brush brush = new SolidBrush(stringToColor(drawable)))
+                        graphics.FillRectangle(brush, 0, 0, size.Width, size.Height);
                 }
-                return bmp;
-            } catch (Exception ex) {
-                throw new Exception(ex.Message + "\nError happening during parse AdaptiveIcon.");
             }
         }
 
@@ -1569,52 +1552,33 @@ namespace ApkQuickReader
         }
 
         private Bitmap parseShape(XmlNode shapeNode, Size size) {
-            try {
-                Bitmap b;
-                XmlElement eShape;
-                if (shapeNode.NodeType == XmlNodeType.Document)
-                    eShape = ((XmlDocument)shapeNode).DocumentElement;
-                else
-                    eShape = (XmlElement)shapeNode;
-                shapeType type = (shapeType)int.Parse(eShape.GetAttribute("shape"));
-                XmlElement eSize = (XmlElement)shapeNode.SelectSingleNode("size");
-                if (eSize != null)
-                    b = new Bitmap(int.Parse(eSize.GetAttribute("width")), int.Parse(eSize.GetAttribute("height")));
-                else {
-                    b = new Bitmap(size.Width, size.Height);
+            XmlElement element = shapeNode.NodeType == XmlNodeType.Document
+                ? ((XmlDocument)shapeNode).DocumentElement
+                : (XmlElement)shapeNode;
+            shapeType type = (shapeType)int.Parse(element.GetAttribute("shape"));
+            XmlElement xmlSize = (XmlElement)element.SelectSingleNode("size");
+            Size imageSize = xmlSize == null ? size : new Size(
+                int.Parse(xmlSize.GetAttribute("width")),
+                int.Parse(xmlSize.GetAttribute("height")));
+            using (Bitmap bitmap = new Bitmap(imageSize.Width, imageSize.Height))
+            using (Graphics graphics = Graphics.FromImage(bitmap))
+            using (GraphicsPath path = new GraphicsPath()) {
+                XmlElement solid = (XmlElement)element.SelectSingleNode("solid");
+                XmlElement gradient = (XmlElement)element.SelectSingleNode("gradient");
+                Brush brush = solid != null
+                    ? (Brush)new SolidBrush(stringToColor(solid.GetAttribute("color")))
+                    : gradient != null ? parseGradient(gradient) : new SolidBrush(Color.Black);
+                if (type == shapeType.rectangle)
+                    path.AddRectangle(new RectangleF(0, 0, bitmap.Width, bitmap.Height));
+                else if (type == shapeType.oval)
+                    path.AddEllipse(0, 0, bitmap.Width, bitmap.Height);
+                else if (type != shapeType.line && type != shapeType.ring)
+                    throw new InvalidDataException("Unsupported Android shape type: " + type);
+                if (brush != null) {
+                    using (brush)
+                        graphics.FillPath(brush, path);
                 }
-                Graphics g = Graphics.FromImage(b);
-                GraphicsPath p = new GraphicsPath();
-                Brush brush;
-                XmlElement ebrush = (XmlElement)eShape.SelectSingleNode("solid");
-                if (ebrush != null) {
-                    brush = new SolidBrush(stringToColor(ebrush.GetAttribute("color")));
-                } else {
-                    if ((ebrush = (XmlElement)eShape.SelectSingleNode("gradient")) != null) {
-                        brush = parseGradient(ebrush);
-                    } else
-                        brush = new SolidBrush(Color.Black);
-                }
-                if (type == shapeType.rectangle) {
-                    XmlElement corners = (XmlElement)eShape.SelectSingleNode("corners");
-                    if (corners != null) {
-                        //ToDo, support round corner
-                    }
-                    p.AddRectangle(new RectangleF(0, 0, b.Width, b.Height));
-                } else if (type == shapeType.oval) {
-                    p.AddEllipse(0, 0, b.Width, b.Height);
-                } else if (type == shapeType.line) {
-                    // todo: support line
-
-                } else if (type == shapeType.ring) {
-                    // todo: support ring
-                } else {
-                    throw new Exception("Unsupported shape type: " + (int)type);
-                }
-                g.FillPath(brush, p);
-                return Utility.ResizeBitmap(b, size);
-            } catch (Exception ex) {
-                throw new Exception(ex.Message + "\nError happending during parsing shape:" + shapeNode.InnerXml);
+                return Utility.ResizeBitmap(bitmap, size);
             }
         }
 
@@ -1801,7 +1765,7 @@ namespace ApkQuickReader
                         return "(0x" + data.ToString("X8")+")";
                     }
                 case DATA_TYPE.TYPE_INT_BOOLEAN:
-                    return (data == 0) ? ConstTrue : ConstFalse;
+                    return (data != 0) ? ConstTrue : ConstFalse;
                 case DATA_TYPE.TYPE_DIMENSION:
                     COMPLEX_TYPE t = (COMPLEX_TYPE)(data & 0xff);
                     string unit = (t == COMPLEX_TYPE.COMPLEX_UNIT_DIP) ? "dp" :
@@ -1848,6 +1812,9 @@ namespace ApkQuickReader
                     chunkType = (RES_TYPE)br.ReadInt16();
                     headerSize = br.ReadInt16();
                     int chunkSize = br.ReadInt32();
+                    if (chunkSize < 8 || headerSize < 8 || headerSize > chunkSize ||
+                        chunkPos + chunkSize > ms.Length)
+                        throw new InvalidDataException("Invalid Android chunk size");
                     if (chunkType == RES_TYPE.RES_STRING_POOL_TYPE) {
                         int stringcount = br.ReadInt32();
                         int stylecount = br.ReadInt32();
@@ -1898,6 +1865,9 @@ namespace ApkQuickReader
                     chunkType = (RES_TYPE)br.ReadInt16();
                     headerSize = br.ReadInt16();
                     int chunkSize = br.ReadInt32();
+                    if (chunkSize < 8 || headerSize < 8 || headerSize > chunkSize ||
+                        chunkPos + chunkSize > ms.Length)
+                        throw new InvalidDataException("Invalid Android chunk size");
 
                     if (chunkType == RES_TYPE.RES_XML_RESOURCE_MAP_TYPE) {
                         //Resource map
@@ -1957,6 +1927,7 @@ namespace ApkQuickReader
         /// <returns>the resource, in string format, if resource id not found, return null value</returns>
         private ApkResource QuickSearchResource(UInt32 id) {
             searchstack.Push(id);
+            try {
             ApkResource res = new ApkResource(id);
 
             byte[] resourceTable = ResourceTable;
@@ -1968,6 +1939,8 @@ namespace ApkQuickReader
                 long stringPoolPos = ms.Position;
                 ms.Seek(4, SeekOrigin.Current);
                 int stringPoolSize = br.ReadInt32();
+                if (stringPoolSize < 8 || stringPoolPos + stringPoolSize > ms.Length)
+                    throw new InvalidDataException("Invalid Android resource string pool size");
                 ms.Seek(stringPoolSize - 8, SeekOrigin.Current); // jump to the end
 
                 //Package chunk now
@@ -1976,6 +1949,9 @@ namespace ApkQuickReader
                     ms.Seek(2, SeekOrigin.Current); // jump type/headersize
                     int headerSize = br.ReadInt16();
                     int PackChunkSize = br.ReadInt32();
+                    if (PackChunkSize < headerSize || headerSize < 8 ||
+                        PackChunkPos + PackChunkSize > ms.Length)
+                        throw new InvalidDataException("Invalid Android resource package size");
                     int packID = br.ReadInt32();
 
                     if (packID != res.PackageID) { // check if the resource is in this pack
@@ -2004,6 +1980,10 @@ namespace ApkQuickReader
                             short chunkType = br.ReadInt16();
                             headerSize = br.ReadInt16();
                             int chunkSize = br.ReadInt32();
+                            if (chunkSize < 8 || headerSize < 8 || headerSize > chunkSize ||
+                                chunkPos + chunkSize > PackChunkPos + PackChunkSize ||
+                                chunkPos + chunkSize > ms.Length)
+                                throw new InvalidDataException("Invalid Android resource entry chunk size");
                             byte typeid;
 
                             if (chunkType == (short)RES_TYPE.RES_TABLE_TYPE_TYPE) {
@@ -2048,8 +2028,10 @@ namespace ApkQuickReader
                         } while (ms.Position < PackChunkPos + PackChunkSize);
                     }
                 }
-                searchstack.Pop();
                 return res;
+            }
+            } finally {
+                searchstack.Pop();
             }
         }
 

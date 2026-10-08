@@ -88,8 +88,10 @@ namespace ApkShellext2 {
             appname = DisplayName.FirstChild.Value.ToString();
             XmlElement Logo = packageNode[elemProperties][elemLogo];
             iconPath = Logo.FirstChild.Value.ToString().Replace(@"\",@"/");
-            XmlElement PhoneIdentity = packageNode[elemPhoneIdentity];
-            productid = PhoneIdentity.Attributes[attrPhoneProductID].Value.ToString();
+            // PhoneIdentity exists in mobile packages but is optional in desktop APPX.
+            XmlElement PhoneIdentity = (XmlElement)packageNode.SelectSingleNode(
+                "*[local-name()='PhoneIdentity']");
+            productid = PhoneIdentity == null ? "" : PhoneIdentity.GetAttribute(attrPhoneProductID);
         }
 
         public override AppPackageReader.AppType Type {
@@ -154,7 +156,11 @@ namespace ApkShellext2 {
                 if (logo != null) {
                     //byte[] imageBytes = new byte[logo.Size];
                     //zip.GetInputStream(logo).Read(imageBytes, 0, (int)logo.Size);
-                    return new Bitmap(zip.GetInputStream(logo));
+                    using (Stream logoStream = zip.GetInputStream(logo))
+                    using (Bitmap decoded = new Bitmap(logoStream)) {
+                        // The returned bitmap must survive closing the ZIP entry.
+                        return new Bitmap(decoded);
+                    }
                 } else {
                     throw new EntryPointNotFoundException("Cannot find Logo file: " + iconPath);
                 }

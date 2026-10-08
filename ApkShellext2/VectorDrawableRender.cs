@@ -99,17 +99,11 @@ namespace ApkShellext2
             //}
             Bitmap b = new Bitmap(viewportWidth, viewportHeight);
             using (Graphics g = Graphics.FromImage(b)) {
-                XmlElement group = (XmlElement)vector.SelectSingleNode("group");
-                XmlNodeList nl;
-                if (group != null) {
-                    nl = group.SelectNodes("path");
-                } else {
-                    nl = vector.SelectNodes("path");
-                }
+                XmlNodeList nl = vector.SelectNodes(".//path");
                 foreach (XmlNode n in nl) {
                     XmlElement elem = (XmlElement)n;
                     string pathdata = elem.GetAttribute("pathData");
-                    GraphicsPath path = Convert2Path(pathdata);
+                    using (GraphicsPath path = Convert2Path(pathdata)) {
                     Brush fill = null;
                     if (elem.HasAttribute("fillColor")) {
                         string fillcolor = elem.GetAttribute("fillColor");
@@ -122,8 +116,9 @@ namespace ApkShellext2
                     } else {
                         fill = new SolidBrush(Color.Black);
                     }
-                    g.FillPath(fill, path);
-                    //g.DrawPath(new Pen(fill, 2), path);                    
+                    using (fill)
+                        g.FillPath(fill, path);
+                    }
                 }
             }
             return b;
@@ -335,9 +330,13 @@ namespace ApkShellext2
 #else
             #region Use SVG lib
             try {
-                Svg.Pathing.SvgPathSegmentList l = SvgPathBuilder.Parse(pathdata.AsSpan());
-                foreach (Svg.Pathing.SvgPathSegment s in l) {
-                    s.AddToPath(path);
+                Svg.Pathing.SvgPathSegmentList segments = SvgPathBuilder.Parse(pathdata.AsSpan());
+                PointF current = PointF.Empty;
+                foreach (Svg.Pathing.SvgPathSegment segment in segments) {
+                    // Svg 3.x requires the preceding endpoint and segment list;
+                    // the obsolete overload uses an uninitialized Start for each
+                    // segment and can produce empty or incorrect filled shapes.
+                    current = segment.AddToPath(path, current, segments);
                 }
             } catch (Exception e){
                 Utility.Log(null, "VectorDrawable, d=" + pathdata, e.Message);

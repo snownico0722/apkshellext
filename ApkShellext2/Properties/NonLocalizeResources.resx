@@ -137,13 +137,13 @@
     <value>http://itunes.apple.com/app/id{0}</value>
   </data>
   <data name="urlGithubHome" xml:space="preserve">
-    <value>https://kkguo.github.io/apkshellext</value>
+    <value>https://github.com/snownico0722/apkshellext/releases</value>
   </data>
   <data name="urlGithubHomeLatest" xml:space="preserve">
-    <value>https://kkguo.github.io/apkshellext/latest</value>
+    <value>https://api.github.com/repos/snownico0722/apkshellext/releases/latest</value>
   </data>
   <data name="urlGithubHomeWithVersion" xml:space="preserve">
-    <value>https://kkguo.github.io/apkshellext/index.html?version={0}</value>
+    <value>https://github.com/snownico0722/apkshellext/releases/latest</value>
   </data>
   <data name="urlGooglePlay" xml:space="preserve">
     <value>https://play.google.com/store/search?q={0}&amp;c=apps</value>

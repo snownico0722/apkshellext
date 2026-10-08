@@ -70,7 +70,23 @@ namespace ApkShellext2 {
                 if (en == null)
                     throw new EntryPointNotFoundException("cannot find appx " + appxFileName);
 
-                appxReader = new AppxReader(zip.GetInputStream(en));
+                // ZIP entry decompression streams are not seekable, whereas
+                // ZipFile in AppxReader needs to seek to the nested central
+                // directory. Extract on disk to avoid buffering large APPX data.
+                string tempPath = Path.Combine(Path.GetTempPath(),
+                    "ApkShellextAppx_" + Guid.NewGuid().ToString("N") + ".appx");
+                FileStream extracted = new FileStream(tempPath, FileMode.CreateNew,
+                    FileAccess.ReadWrite, FileShare.Read, 81920, FileOptions.DeleteOnClose);
+                try {
+                    using (Stream nested = zip.GetInputStream(en))
+                        nested.CopyTo(extracted);
+                    extracted.Position = 0;
+                    // AppxReader owns this extracted stream and disposes it on Close.
+                    appxReader = new AppxReader(extracted);
+                } catch {
+                    extracted.Dispose();
+                    throw;
+                }
             } catch {
                 if (appxReader != null) {
                     appxReader.Close();
