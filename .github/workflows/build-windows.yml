@@ -28,6 +28,15 @@ jobs:
       - name: Run APK reader smoke tests
         shell: pwsh
         run: '& "./smoke-tests/bin/Release/ApkReaderSmokeTests.exe"'
+      - name: Build updated native WebP libraries for x64 and x86
+        shell: pwsh
+        run: ./scripts/build-libwebp.ps1
+      - name: Verify both WebP architectures and versions
+        shell: pwsh
+        run: |
+          ./scripts/verify-libwebp.ps1 -DllPath ./ApkShellext2/bin/Release/libwebp_x64.dll -Architecture x64
+          & "$env:WINDIR\SysWOW64\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ./scripts/verify-libwebp.ps1 -DllPath ./ApkShellext2/bin/Release/libwebp_x86.dll -Architecture x86
+          if ($LASTEXITCODE -ne 0) { throw "The x86 WebP version check failed." }
       - name: Verify produced shell extension
         shell: pwsh
         run: |

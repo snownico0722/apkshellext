@@ -19,11 +19,12 @@ namespace ApkShellextSmokeTests {
                 CheckFirstEntryUppercasePng(Path.Combine(dir, "first-entry.apk"));
                 CheckCallerStreamIsNotClosed();
                 CheckNestedAndroidPackages(dir);
+                CheckMalformedLegacyPackages(dir);
                 if (AppPackageReader.getAppType("sample.APK") != AppPackageReader.AppType.AndroidApp ||
                     AppPackageReader.getAppType("sample.IPA") != AppPackageReader.AppType.iOSApp ||
                     AppPackageReader.getAppType("sample.APPX") != AppPackageReader.AppType.WindowsPhoneApp)
                     throw new Exception("Case-insensitive package detection failed");
-                Console.WriteLine("PASS: APK streams, malformed binary XML, PNG icons and bundles");
+                Console.WriteLine("PASS: APK streams, binary XML, PNG icons, bundles and malformed-package cleanup");
                 return 0;
             } catch (Exception ex) {
                 Console.Error.WriteLine("FAIL: " + ex);
@@ -162,6 +163,40 @@ namespace ApkShellextSmokeTests {
                         throw new Exception("Bundle reader did not preserve the original APK metadata API");
                 }
                 using (var exclusive = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) {
+                }
+            }
+        }
+
+        private static void CheckMalformedLegacyPackages(string dir) {
+            foreach (string extension in new[] { ".ipa", ".appx", ".appxbundle" }) {
+                string path = Path.Combine(dir, "invalid" + extension);
+                using (var archive = new ZipArchive(
+                    new FileStream(path, FileMode.Create, FileAccess.Write), ZipArchiveMode.Create)) {
+                    if (extension == ".appxbundle") {
+                        // A valid bundle manifest without an application must terminate,
+                        // not loop forever while scanning past the final Package element.
+                        using (var writer = new StreamWriter(
+                            archive.CreateEntry("AppxMetadata/AppxBundleManifest.xml").Open())) {
+                            writer.Write("<Bundle><Identity Name=\"test\" />" +
+                                "<Package Type=\"resource\" FileName=\"resource.appx\" /></Bundle>");
+                        }
+                    } else {
+                        WriteEntry(archive, "unrelated.txt");
+                    }
+                }
+
+                bool rejected = false;
+                try {
+                    using (AppPackageReader reader = AppPackageReader.Read(path)) {
+                    }
+                } catch (Exception) {
+                    rejected = true;
+                }
+                if (!rejected)
+                    throw new Exception("Invalid package was accepted: " + extension);
+
+                using (var exclusive = new FileStream(
+                    path, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) {
                 }
             }
         }

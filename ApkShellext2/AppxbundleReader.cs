@@ -35,37 +35,51 @@ namespace ApkShellext2 {
 
         public AppxBundleReader(string path) {
             FileName = path;
-            openFile(new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read));
+            FileStream stream = new FileStream(path, FileMode.Open, FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete);
+            try {
+                openFile(stream);
+            } catch {
+                stream.Dispose();
+                throw;
+            }
         }
 
         private void openFile(Stream stream) {
-            string appxFileName = "";
-            zip = new ZipFile(stream);
-            ZipEntry en = zip.GetEntry(AppxBundleManifestXml);
-            if (en == null)
-                throw new EntryPointNotFoundException("cannot find " + AppxBundleManifestXml);
+            try {
+                zip = new ZipFile(stream);
+                ZipEntry en = zip.GetEntry(AppxBundleManifestXml);
+                if (en == null)
+                    throw new EntryPointNotFoundException("cannot find " + AppxBundleManifestXml);
 
-            using (XmlReader reader = XmlReader.Create(zip.GetInputStream(en))) {
-                reader.ReadToFollowing(ElemIdentity);
-                reader.MoveToAttribute(AttrName);
+                string appxFileName = null;
+                using (Stream manifestStream = zip.GetInputStream(en))
+                using (XmlReader reader = XmlReader.Create(manifestStream)) {
+                    while (reader.ReadToFollowing(ElemPackage)) {
+                        if (reader.GetAttribute(AttrType) == ValApplication) {
+                            appxFileName = reader.GetAttribute(AttrFileName);
+                            break;
+                        }
+                    }
+                }
 
-                do {
-                    reader.ReadToFollowing(ElemPackage);
-                    reader.MoveToAttribute(AttrType);
-                } while (reader.Value != ValApplication || reader.EOF);
+                if (string.IsNullOrEmpty(appxFileName))
+                    throw new InvalidDataException("Cannot find application in " + AppxBundleManifestXml);
 
-                if (reader.EOF)
-                    throw new Exception("Cannot find application in " + AppxBundleManifestXml);
+                en = zip.GetEntry(appxFileName);
+                if (en == null)
+                    throw new EntryPointNotFoundException("cannot find appx " + appxFileName);
 
-                reader.MoveToAttribute(AttrFileName);
-                appxFileName = reader.Value;
+                appxReader = new AppxReader(zip.GetInputStream(en));
+            } catch {
+                if (appxReader != null) {
+                    appxReader.Close();
+                    appxReader = null;
+                }
+                if (zip != null)
+                    zip.Close();
+                throw;
             }
-
-            en = zip.GetEntry(appxFileName);
-            if (en == null)
-                throw new EntryPointNotFoundException("cannot find appx " + appxFileName);
-
-            appxReader = new AppxReader(zip.GetInputStream(en));
         }
 
         public override AppPackageReader.AppType Type {
