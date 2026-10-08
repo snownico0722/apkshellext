@@ -120,7 +120,7 @@ try {
     Assert-ComRegistration $true
 
     foreach ($architecture in @('x64', 'x86')) {
-        foreach ($suite in @('registration', 'valid', 'invalid', 'stress', 'downloading')) {
+        foreach ($suite in @('registration', 'valid', 'invalid', 'stress', 'downloading', 'settings')) {
             Invoke-Case $architecture $suite
         }
     }
