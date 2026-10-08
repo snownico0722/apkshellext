@@ -27,8 +27,12 @@ if (-not (Test-Path $winPs32)) {
 & $winPs32 -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'verify-libwebp.ps1') -DllPath (Join-Path $BuildDirectory 'libwebp_x86.dll') -Architecture x86
 if ($LASTEXITCODE -ne 0) { throw 'The x86 libwebp DLL failed validation.' }
 
+# The extension now references managed NuGet assemblies as well as native WebP.
+# Ship all built DLL dependencies next to the COM entry assembly.
 $payload = @($required)
-$payload += @(Get-ChildItem -Path $BuildDirectory -Filter 'libwebp_*.dll' -File | ForEach-Object Name)
+$payload += @(Get-ChildItem -Path $BuildDirectory -Filter '*.dll' -File |
+    Where-Object { $_.Name -notin $required } | ForEach-Object Name)
+$payload = @($payload | Select-Object -Unique)
 
 $command = Get-Command '7z.exe' -ErrorAction SilentlyContinue
 $sevenZip = if ($command) { $command.Source } else { Join-Path $env:ProgramFiles '7-Zip\7z.exe' }

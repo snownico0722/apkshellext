@@ -15,17 +15,17 @@ jobs:
     runs-on: windows-2022
     steps:
       - name: Checkout exact release commit with submodules
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: recursive
       - name: Configure MSBuild
-        uses: microsoft/setup-msbuild@v2
+        uses: microsoft/setup-msbuild@v3
       - name: Build application
         shell: pwsh
-        run: msbuild ApkShellext2.sln /m /p:Configuration=Release /p:Platform="Any CPU" /verbosity:minimal
+        run: msbuild ApkShellext2.sln /restore /m /p:Configuration=Release /p:Platform="Any CPU" /verbosity:minimal
       - name: Build smoke tests
         shell: pwsh
-        run: msbuild smoke-tests/ApkReaderSmokeTests.csproj /m /p:Configuration=Release /verbosity:minimal
+        run: msbuild smoke-tests/ApkReaderSmokeTests.csproj /restore /m /p:Configuration=Release /verbosity:minimal
       - name: Run smoke tests
         shell: pwsh
         run: '& "./smoke-tests/bin/Release/ApkReaderSmokeTests.exe"'
@@ -35,6 +35,16 @@ jobs:
       - name: Verify and package release payload
         shell: pwsh
         run: ./scripts/package-release.ps1
+      - name: Verify standalone release dependencies in 64-bit and 32-bit .NET Framework
+        shell: pwsh
+        run: |
+          $archive = @(Get-ChildItem -Path dist -File | Where-Object { $_.Name -match '^ApkShellext2\.(7z|zip)$' } | Select-Object -First 1)
+          if ($archive.Count -ne 1) { throw "Missing primary release archive." }
+          $script = "./smoke-tests/VerifyPackagedRuntime.ps1"
+          & "$env:WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $script -ArchivePath $archive[0].FullName
+          if ($LASTEXITCODE -ne 0) { throw "Standalone x64 release runtime check failed." }
+          & "$env:WINDIR\SysWOW64\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $script -ArchivePath $archive[0].FullName
+          if ($LASTEXITCODE -ne 0) { throw "Standalone x86 release runtime check failed." }
       - name: Publish versioned GitHub Release
         shell: pwsh
         env:

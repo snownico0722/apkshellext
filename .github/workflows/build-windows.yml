@@ -11,20 +11,20 @@ jobs:
     runs-on: windows-2022
     steps:
       - name: Checkout with the original dependencies
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: recursive
       - name: Configure MSBuild
-        uses: microsoft/setup-msbuild@v2
+        uses: microsoft/setup-msbuild@v3
       - name: Build shell extension and original test app
         shell: pwsh
-        run: msbuild ApkShellext2.sln /m /p:Configuration=Release /p:Platform="Any CPU" /verbosity:minimal
+        run: msbuild ApkShellext2.sln /restore /m /p:Configuration=Release /p:Platform="Any CPU" /verbosity:minimal
       - name: Build original optional service
         shell: pwsh
         run: msbuild ApkShellextService/apkShellextService.csproj /m /p:Configuration=Release /verbosity:minimal
       - name: Build APK reader smoke tests
         shell: pwsh
-        run: msbuild smoke-tests/ApkReaderSmokeTests.csproj /m /p:Configuration=Release /verbosity:minimal
+        run: msbuild smoke-tests/ApkReaderSmokeTests.csproj /restore /m /p:Configuration=Release /verbosity:minimal
       - name: Run APK reader smoke tests
         shell: pwsh
         run: '& "./smoke-tests/bin/Release/ApkReaderSmokeTests.exe"'
@@ -49,14 +49,24 @@ jobs:
       - name: Build portable release archives
         shell: pwsh
         run: ./scripts/package-release.ps1
+      - name: Verify standalone release dependencies in 64-bit and 32-bit .NET Framework
+        shell: pwsh
+        run: |
+          $archive = @(Get-ChildItem -Path dist -File | Where-Object { $_.Name -match '^ApkShellext2\.(7z|zip)$' } | Select-Object -First 1)
+          if ($archive.Count -ne 1) { throw "Missing primary release archive." }
+          $script = "./smoke-tests/VerifyPackagedRuntime.ps1"
+          & "$env:WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $script -ArchivePath $archive[0].FullName
+          if ($LASTEXITCODE -ne 0) { throw "Standalone x64 release runtime check failed." }
+          & "$env:WINDIR\SysWOW64\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $script -ArchivePath $archive[0].FullName
+          if ($LASTEXITCODE -ne 0) { throw "Standalone x86 release runtime check failed." }
       - name: Upload release archives
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: apkshellext2-release-archives
           path: dist/*
           if-no-files-found: error
       - name: Keep build output for manual Explorer smoke tests
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: apkshellext2-windows-release
           path: ApkShellext2/bin/Release/
