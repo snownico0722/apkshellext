@@ -86,7 +86,7 @@ namespace ApkShellext2 {
         }
 
         public static AppType getAppType(string path) {
-            string suffix = Path.GetExtension(path);
+            string suffix = Path.GetExtension(path).ToLowerInvariant();
             if (suffix == extAPK) {
                 return AppType.AndroidApp;
             } else if (suffix == extIPA) {

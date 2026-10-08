@@ -56,8 +56,22 @@ namespace ApkShellext2 {
                 }
             }
 
-            return Icon.FromHandle(Utility.ResizeBitmap(m_icon, new Size((int)iconSize, (int)iconSize)).GetHicon());
+            using (Bitmap scaled = Utility.ResizeBitmap(m_icon, new Size((int)iconSize, (int)iconSize))) {
+                IntPtr nativeIcon = scaled.GetHicon();
+                try {
+                    // Windows owns the HICON; do not return a wrapper over a freed handle.
+                    using (Icon temporary = Icon.FromHandle(nativeIcon)) {
+                        return (Icon)temporary.Clone();
+                    }
+                } finally {
+                    DestroyIcon(nativeIcon);
+                }
+            }
         }
+
+        [DllImport("user32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool DestroyIcon(IntPtr hIcon);
 
         [CustomRegisterFunction]
         public static void postDoRegister(Type type, RegistrationType registrationType) {
