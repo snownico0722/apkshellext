@@ -3,7 +3,7 @@
 	url = https://github.com/kkguo/SharpZipLib.git
 [submodule "ApkShellext2/SharpShell"]
 	path = ApkShellext2/SharpShell
-	url = https://github.com/kkguo/sharpshell.git
+	url = https://github.com/dwmkerr/sharpshell.git
 [submodule "ApkShellext2/PlistCS"]
 	path = ApkShellext2/PlistCS
 	url = https://github.com/kkguo/PlistCS.git
