@@ -316,7 +316,15 @@ namespace ApkShellextSmokeTests {
                 if (Utility.NewVersionAvailible())
                     throw new Exception("Invalid cached version caused a false update signal");
 
-                Utility.SaveSetting("LatestVersion", "0.4.1.0");
+                Version current = typeof(Utility).Assembly.GetName().Version;
+                Utility.SaveSetting("LatestVersion", current.ToString());
+                if (Utility.NewVersionAvailible())
+                    throw new Exception("An identical release was falsely reported as newer");
+
+                // Derive a genuinely newer version from the assembly being
+                // tested, so the check stays valid after future major bumps.
+                Version newer = new Version(current.Major + 1, 0, 0, 0);
+                Utility.SaveSetting("LatestVersion", newer.ToString());
                 if (!Utility.NewVersionAvailible())
                     throw new Exception("Valid newer release was not detected");
 
