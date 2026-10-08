@@ -43,7 +43,9 @@ try {
     [IO.Compression.ZipFile]::CreateFromDirectory($fixtureDir, $apkPath)
 
     $apkType = $assembly.GetType('ApkQuickReader.ApkReader', $true)
-    $reader = [Activator]::CreateInstance($apkType, [object[]]@($apkPath, ''))
+    $constructor = $apkType.GetConstructor([Type[]]@([string], [string]))
+    if ($null -eq $constructor) { throw 'The public ApkReader(string, string) constructor was not found.' }
+    $reader = $constructor.Invoke([object[]]@($apkPath, [string]::Empty))
     try {
         if ($null -eq $reader.Type) { throw 'APK reader did not initialize.' }
     } finally {
