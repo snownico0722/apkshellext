@@ -114,7 +114,7 @@ namespace ApkShellextIntegration {
 
         internal static void Check(int hr, string operation) {
             if (hr < 0)
-                Marshal.ThrowExceptionForHR(hr);
+                throw new COMException(operation + " failed with HRESULT 0x" + hr.ToString("X8"), hr);
         }
 
         internal static void Release(object instance) {
