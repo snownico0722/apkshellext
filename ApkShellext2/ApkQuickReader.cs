@@ -1708,8 +1708,10 @@ namespace ApkQuickReader
         public XmlDocument ExtractCompressedXml(string path) {
             try {
                 ZipEntry en = zip.GetEntry(path);
-                byte[] bytes = new BinaryReader(zip.GetInputStream(en)).ReadBytes((int)en.Size);
-                return ExtractCompressedXml(bytes);
+                using (Stream entryStream = zip.GetInputStream(en))
+                using (BinaryReader reader = new BinaryReader(entryStream)) {
+                    return ExtractCompressedXml(reader.ReadBytes(checked((int)en.Size)));
+                }
             } catch (Exception ex) {
                 throw new Exception(ex.Message + "\nError happens during dump " + path);
             }
@@ -1722,6 +1724,8 @@ namespace ApkQuickReader
                 RES_TYPE chunkType = (RES_TYPE)br.ReadInt16();
                 short headerSize = br.ReadInt16();
                 int chunkSize = br.ReadInt32();
+                if (headerSize < 8 || chunkSize < headerSize || chunkSize > ms.Length)
+                    throw new InvalidDataException("Invalid binary Android XML header");
                 ms.Seek(chunkPos + headerSize, SeekOrigin.Begin);
 
                 XmlDocument doc = new XmlDocument();
@@ -1735,6 +1739,9 @@ namespace ApkQuickReader
                         chunkType = (RES_TYPE)br.ReadInt16();
                         headerSize = br.ReadInt16();
                         chunkSize = br.ReadInt32();
+                        if (chunkSize < 8 || headerSize < 8 || headerSize > chunkSize ||
+                            chunkPos + chunkSize > ms.Length)
+                            throw new InvalidDataException("Invalid binary Android XML chunk size");
                         ms.Seek(chunkPos + headerSize, SeekOrigin.Begin);
                         if (chunkType == RES_TYPE.RES_XML_START_NAMESPACE_TYPE) {                            
                             string prefix = QuickSearchStringPool(bytes, br.ReadUInt32());
