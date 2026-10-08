@@ -15,8 +15,9 @@ New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
 # local packaging run. This locale is now included in the primary DLL.
 foreach ($extension in @('.7z', '.zip')) {
     $obsolete = Join-Path $OutputDirectory ("zh-CN" + $extension)
-    if (Test-Path -LiteralPath $obsolete)
+    if (Test-Path -LiteralPath $obsolete) {
         Remove-Item -LiteralPath $obsolete -Force
+    }
 }
 
 # Simplified Chinese belongs to the main assembly, never a zh-CN satellite.
