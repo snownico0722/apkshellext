@@ -120,6 +120,32 @@ namespace ApkShellextIntegration {
                 Marshal.FinalReleaseComObject(instance);
         }
 
+        internal static bool SupportsInterface(object instance, Guid iid) {
+            IntPtr unknown = Marshal.GetIUnknownForObject(instance);
+            IntPtr requested = IntPtr.Zero;
+            try {
+                int hr = Marshal.QueryInterface(unknown, ref iid, out requested);
+                return hr >= 0 && requested != IntPtr.Zero;
+            } finally {
+                if (requested != IntPtr.Zero) Marshal.Release(requested);
+                Marshal.Release(unknown);
+            }
+        }
+
+        internal static T AsInterface<T>(object instance) where T : class {
+            Guid iid = typeof(T).GUID;
+            IntPtr unknown = Marshal.GetIUnknownForObject(instance);
+            IntPtr requested = IntPtr.Zero;
+            try {
+                Check(Marshal.QueryInterface(unknown, ref iid, out requested),
+                    "QueryInterface(" + typeof(T).Name + ")");
+                return (T)Marshal.GetTypedObjectForIUnknown(requested, typeof(T));
+            } finally {
+                if (requested != IntPtr.Zero) Marshal.Release(requested);
+                Marshal.Release(unknown);
+            }
+        }
+
         internal static object Create(Guid clsid) {
             Type comType = Type.GetTypeFromCLSID(clsid, true);
             object instance = Activator.CreateInstance(comType);
