@@ -18,13 +18,13 @@ jobs:
         uses: microsoft/setup-msbuild@v2
       - name: Build shell extension and original test app
         shell: pwsh
-        run: msbuild ApkShellext2.sln /m /p:Configuration=Release /p:Platform="Any CPU" /verbosity:minimal
+        run: msbuild ApkShellext2.sln /restore /m /p:Configuration=Release /p:Platform="Any CPU" /verbosity:minimal
       - name: Build original optional service
         shell: pwsh
         run: msbuild ApkShellextService/apkShellextService.csproj /m /p:Configuration=Release /verbosity:minimal
       - name: Build APK reader smoke tests
         shell: pwsh
-        run: msbuild smoke-tests/ApkReaderSmokeTests.csproj /m /p:Configuration=Release /verbosity:minimal
+        run: msbuild smoke-tests/ApkReaderSmokeTests.csproj /restore /m /p:Configuration=Release /verbosity:minimal
       - name: Run APK reader smoke tests
         shell: pwsh
         run: '& "./smoke-tests/bin/Release/ApkReaderSmokeTests.exe"'
