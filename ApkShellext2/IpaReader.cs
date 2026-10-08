@@ -141,14 +141,25 @@ namespace ApkShellext2
             if (image == null) {
                 return null;
             }
-            byte[] imageBytes = new byte[image.Size];
-            zip.GetInputStream(image).Read(imageBytes, 0, (int)image.Size);
+            byte[] imageBytes;
+            using (Stream stream = zip.GetInputStream(image))
+            using (BinaryReader reader = new BinaryReader(stream)) {
+                imageBytes = reader.ReadBytes(checked((int)image.Size));
+                if (imageBytes.Length != image.Size)
+                    throw new EndOfStreamException("Truncated IPA icon data");
+            }
             try {
-                MemoryStream imageOut = new MemoryStream();
-                PNGDecrusher.Decrush(new MemoryStream(imageBytes), imageOut);
-                return new Bitmap(imageOut);
+                using (MemoryStream compressed = new MemoryStream(imageBytes))
+                using (MemoryStream decompressed = new MemoryStream()) {
+                    PNGDecrusher.Decrush(compressed, decompressed);
+                    decompressed.Position = 0;
+                    using (Bitmap decoded = new Bitmap(decompressed))
+                        return new Bitmap(decoded);
+                }
             } catch (InvalidDataException) { // image is not crushed
-                return new Bitmap(new MemoryStream(imageBytes));
+                using (MemoryStream buffer = new MemoryStream(imageBytes))
+                using (Bitmap decoded = new Bitmap(buffer))
+                    return new Bitmap(decoded);
             }
         }
 
@@ -240,16 +251,30 @@ namespace ApkShellext2
             }
         }
 
+        private Dictionary<string, object> GetItunesMetadata() {
+            if (itunesMetadataDic != null)
+                return itunesMetadataDic;
+            ZipEntry entry = zip.GetEntry(iTunesMetadataPath);
+            if (entry == null)
+                return null;
+            byte[] data;
+            using (Stream stream = zip.GetInputStream(entry))
+            using (BinaryReader reader = new BinaryReader(stream)) {
+                data = reader.ReadBytes(checked((int)entry.Size));
+                if (data.Length != entry.Size)
+                    throw new EndOfStreamException("Truncated IPA metadata");
+            }
+            itunesMetadataDic = (Dictionary<string, object>)Plist.readPlist(data);
+            return itunesMetadataDic;
+        }
+
         public override string Publisher {
             get {
                 try {
-                    ZipEntry itunesMetadata = zip.GetEntry(iTunesMetadataPath);
-                    if (itunesMetadata == null)
-                        return "";
-                    byte[] itunesMetadataBytes = new byte[itunesMetadata.Size];
-                    zip.GetInputStream(itunesMetadata).Read(itunesMetadataBytes, 0, (int)itunesMetadata.Size);
-                    itunesMetadataDic = (Dictionary<string, object>)Plist.readPlist(itunesMetadataBytes);
-                    return getStrings(itunesMetadataDic, new string[] { flagCopyright })[0];
+                    Dictionary<string, object> metadata = GetItunesMetadata();
+                    if (metadata == null) return "";
+                    string[] copyright = getStrings(metadata, new[] { flagCopyright });
+                    return copyright.Length > 0 ? copyright[0] : "";
                 } catch {
                     return "";
                 }
@@ -259,19 +284,15 @@ namespace ApkShellext2
         public override string AppID {
             get {
                 try {
-                    ZipEntry itunesMetadata = zip.GetEntry(iTunesMetadataPath);
-                    if (itunesMetadata == null)
-                        return "";
-                    byte[] itunesMetadataBytes = new byte[itunesMetadata.Size];
-                    zip.GetInputStream(itunesMetadata).Read(itunesMetadataBytes, 0, (int)itunesMetadata.Size);
-                    itunesMetadataDic = (Dictionary<string, object>)Plist.readPlist(itunesMetadataBytes);
-                    return getStrings(itunesMetadataDic, new string[] { flagAppId })[0];
+                    Dictionary<string, object> metadata = GetItunesMetadata();
+                    if (metadata == null) return "";
+                    string[] ids = getStrings(metadata, new[] { flagAppId });
+                    return ids.Length > 0 ? ids[0] : "";
                 } catch {
                     return "";
                 }
             }
         }
-
 
         private bool disposed = false;
         protected override void Dispose(bool disposing) {
