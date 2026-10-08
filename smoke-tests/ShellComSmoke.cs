@@ -26,6 +26,8 @@ namespace ApkShellextIntegration {
                         key.SetValue("StretchThumbnail", "True");
                         key.SetValue("ShowOverlayIcon", "False");
                         key.SetValue("ShowOverLayIcon", "False");
+                        key.SetValue("ShowIpaIcon", "True");
+                        key.SetValue("ShowAppxIcon", "True");
                     }
 
                 switch (suite) {
@@ -80,9 +82,11 @@ namespace ApkShellextIntegration {
                     filename.EndsWith(".apks", StringComparison.OrdinalIgnoreCase) ||
                     filename.EndsWith(".apkm", StringComparison.OrdinalIgnoreCase);
 
-                CheckInfoTip(path, android ? ShellFixtures.AppName : null);
-                // Only Android paths have a distinct, explicit expected icon color.
-                CheckExtractIcon(path, android);
+                string expectedName = android ? ShellFixtures.AppName :
+                    filename.EndsWith(".ipa", StringComparison.OrdinalIgnoreCase)
+                        ? "Shell iOS Test" : "Shell Windows Test";
+                CheckInfoTip(path, expectedName);
+                CheckExtractIcon(path, true);
                 CheckContextMenu(new[] { path });
                 if (android) CheckThumbnail(path, true);
                 AssertFileIsWritable(path);
