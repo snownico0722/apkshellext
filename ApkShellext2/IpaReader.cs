@@ -46,7 +46,14 @@ namespace ApkShellext2
 
         public IpaReader(string path) {
             FileName = path;
-            openStream(new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read));
+            FileStream stream = new FileStream(path, FileMode.Open, FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete);
+            try {
+                openStream(stream);
+            } catch {
+                stream.Dispose();
+                throw;
+            }
         }
 
         public IpaReader(Stream stream) {
@@ -54,25 +61,31 @@ namespace ApkShellext2
         }
 
         private void openStream(Stream stream) {
-            zip = new ZipFile(stream);
-            ZipEntry infoPlist = null;
-            foreach (ZipEntry en in zip) {
-                Match m = Regex.Match(en.Name, infoPlistPath);
-                if (m.Success) {
-                    strAppRoot = m.Groups[1].Value;
-                    infoPlist = en;
-                    break;
+            try {
+                zip = new ZipFile(stream);
+                ZipEntry infoPlist = null;
+                foreach (ZipEntry en in zip) {
+                    Match m = Regex.Match(en.Name, infoPlistPath);
+                    if (m.Success) {
+                        strAppRoot = m.Groups[1].Value;
+                        infoPlist = en;
+                        break;
+                    }
                 }
+
+                if (infoPlist == null)
+                    throw new EntryPointNotFoundException("cannot find info.plist");
+
+                using (Stream entryStream = zip.GetInputStream(infoPlist))
+                using (BinaryReader reader = new BinaryReader(entryStream)) {
+                    byte[] infoBytes = reader.ReadBytes(checked((int)infoPlist.Size));
+                    infoPlistDic = (Dictionary<string, object>)Plist.readPlist(infoBytes);
+                }
+            } catch {
+                if (zip != null)
+                    zip.Close();
+                throw;
             }
-
-            if (infoPlist == null) {
-                throw new EntryPointNotFoundException("cannot find info.plist");
-            }
-
-            byte[] infoBytes = new byte[infoPlist.Size];
-            zip.GetInputStream(infoPlist).Read(infoBytes, 0, (int)infoPlist.Size);
-
-            infoPlistDic = (Dictionary<string, object>)Plist.readPlist(infoBytes);
         }
 
         public string[] getStrings(Dictionary<string, object> dic, string[] keys) {
