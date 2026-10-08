@@ -12,9 +12,6 @@ namespace ApkShellext2 {
     public partial class Preferences : Form {
         private bool formLoaded;
         private bool needClearThumbnailCache;
-        private bool renamePatternIsDirty;
-        private bool toolTipPatternIsDirty;
-        private bool replaceWhiteSpaceIsDirty;
 
         public string currentFile = "";
 
@@ -70,7 +67,7 @@ namespace ApkShellext2 {
             formLoaded = true;
         }
 
-        // Changing the language must not reload settings and erase unsaved patterns.
+        // Changing the language updates labels without resetting the current field values.
         private void RefreshLocalizedText() {
             Text = Resources.strPreferencesCaption;
             grpGeneral.Text = Resources.twGeneral;
@@ -208,15 +205,15 @@ namespace ApkShellext2 {
         }
 
         private void txtRename_TextChanged(object sender, EventArgs e) {
-            if (formLoaded) renamePatternIsDirty = true;
+            if (formLoaded) Utility.SaveSetting("RenamePattern", txtRenamePattern.Text);
         }
 
         private void txtToolTipPattern_TextChanged(object sender, EventArgs e) {
-            if (formLoaded) toolTipPatternIsDirty = true;
+            if (formLoaded) Utility.SaveSetting("ToolTipPattern", txtToolTipPattern.Text);
         }
 
         private void TxtReplaceWhiteSpace_TextChanged(object sender, EventArgs e) {
-            if (formLoaded) replaceWhiteSpaceIsDirty = true;
+            if (formLoaded) Utility.SaveSetting("ReplaceSpaceChar", txtReplaceWhiteSpace.Text);
         }
 
         private void btnResetRenamePattern_Click(object sender, EventArgs e) {
@@ -232,12 +229,7 @@ namespace ApkShellext2 {
         }
 
         private void btnOK_Click(object sender, EventArgs e) {
-            if (renamePatternIsDirty)
-                Utility.SaveSetting("RenamePattern", txtRenamePattern.Text);
-            if (toolTipPatternIsDirty)
-                Utility.SaveSetting("ToolTipPattern", txtToolTipPattern.Text);
-            if (replaceWhiteSpaceIsDirty)
-                Utility.SaveSetting("ReplaceSpaceChar", txtReplaceWhiteSpace.Text);
+            // All settings are applied as changed, including the text patterns.
             Close();
         }
 
@@ -245,14 +237,17 @@ namespace ApkShellext2 {
             if (needClearThumbnailCache &&
                 MessageBox.Show(Resources.dialogNeedClearCache, Resources.strClearCache,
                     MessageBoxButtons.YesNo, MessageBoxIcon.Exclamation) == DialogResult.Yes)
-                btnClearCache_Click(sender, EventArgs.Empty);
+                ClearThumbnailCache();
         }
 
         private void btnClearCache_Click(object sender, EventArgs e) {
             if (MessageBox.Show(Resources.dialogClearCache, Resources.strClearCache,
-                    MessageBoxButtons.YesNo, MessageBoxIcon.Exclamation) != DialogResult.Yes)
-                return;
+                    MessageBoxButtons.YesNo, MessageBoxIcon.Exclamation) == DialogResult.Yes)
+                ClearThumbnailCache();
+        }
 
+        // Called after a single confirmation, whether from the button or on close.
+        private void ClearThumbnailCache() {
             string path = Path.Combine(Path.GetTempPath(), "clearcache.bat");
             File.WriteAllText(path, NonLocalizeResources.cmdClearCache);
             using (var process = new Process()) {
