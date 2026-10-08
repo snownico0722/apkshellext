@@ -81,8 +81,13 @@ namespace ApkShellext2 {
             bool singleSelected = SelectedItemPaths.Count() == 1;
             string appname = "";
             if (singleSelected) {
-                using (AppPackageReader reader = AppPackageReader.Read(SelectedItemPaths.ElementAt(0)))
-                    appname = reader.AppName;
+                try {
+                    using (AppPackageReader reader = AppPackageReader.Read(SelectedItemPaths.ElementAt(0)))
+                        appname = reader.AppName;
+                } catch (Exception ex) {
+                    // A broken download must not prevent Explorer from showing the menu.
+                    Log("Cannot read package name for context menu: " + ex.Message);
+                }
             }
 
             #region Rename Menu
