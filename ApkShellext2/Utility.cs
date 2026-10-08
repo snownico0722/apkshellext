@@ -208,7 +208,9 @@ namespace ApkShellext2 {
         public static void Localize() {
             string lang = GetSetting("Language");
             if (string.IsNullOrWhiteSpace(lang)) {
-                lang = SystemDefaultLanguage(CultureInfo.InstalledUICulture,
+                // CurrentUICulture follows the user's Windows display language;
+                // InstalledUICulture can still be the original OS language.
+                lang = SystemDefaultLanguage(CultureInfo.CurrentUICulture,
                     getSupportedLanguages());
             }
 
