@@ -1473,42 +1473,32 @@ namespace ApkQuickReader
         }
 
         private Bitmap parseAdaptiveIcon(XmlNode node, Size size) {
-            /// Get adaptive - icon
-            /// 
-            /*
-            <?xml version="1.0" encoding="utf-8"?>
-            <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-            <background android:drawable="@drawable/ic_launcher_background" />
-            <foreground android:drawable="@drawable/ic_launcher_foreground" />
-            </adaptive-icon>
-            */
+            XmlElement background = (XmlElement)node.SelectSingleNode("/adaptive-icon/background");
+            XmlElement foreground = (XmlElement)node.SelectSingleNode("/adaptive-icon/foreground");
+            Bitmap result = new Bitmap(size.Width, size.Height);
             try {
-                XmlElement elem = (XmlElement)node.SelectSingleNode("/adaptive-icon/background");
-                Bitmap b = null, f = null;
-                Bitmap bmp = new Bitmap(size.Width, size.Height);
-                Graphics g = Graphics.FromImage(bmp);
-                if (elem.HasAttribute("drawable")) {
-                    b = getImage(elem.GetAttribute("drawable"), size);
-                    if (b != null)
-                        g.DrawImage(b, 0, 0);
-                    else {
-                        Color c = stringToColor(elem.GetAttribute("drawable"));
-                        g.FillRectangle(new SolidBrush(c), 0, 0, bmp.Width, bmp.Height);
-                    }
+                using (Graphics graphics = Graphics.FromImage(result)) {
+                    DrawAdaptiveLayer(graphics, background, size);
+                    DrawAdaptiveLayer(graphics, foreground, size);
                 }
-                elem = (XmlElement)node.SelectSingleNode("/adaptive-icon/foreground");
-                if (elem.HasAttribute("drawable")) {
-                    f = getImage(elem.GetAttribute("drawable"), size);
-                    if (f != null)
-                        g.DrawImage(f, 0, 0);
-                    else {
-                        Color c = stringToColor(elem.GetAttribute("drawable"));
-                        g.FillRectangle(new SolidBrush(c), 0, 0, bmp.Width, bmp.Height);
-                    }
+                return result;
+            } catch {
+                result.Dispose();
+                throw;
+            }
+        }
+
+        private void DrawAdaptiveLayer(Graphics graphics, XmlElement layer, Size size) {
+            if (layer == null || !layer.HasAttribute("drawable"))
+                return;
+            string drawable = layer.GetAttribute("drawable");
+            using (Bitmap bitmap = getImage(drawable, size)) {
+                if (bitmap != null) {
+                    graphics.DrawImage(bitmap, 0, 0);
+                } else {
+                    using (Brush brush = new SolidBrush(stringToColor(drawable)))
+                        graphics.FillRectangle(brush, 0, 0, size.Width, size.Height);
                 }
-                return bmp;
-            } catch (Exception ex) {
-                throw new Exception(ex.Message + "\nError happening during parse AdaptiveIcon.");
             }
         }
 
@@ -1562,52 +1552,33 @@ namespace ApkQuickReader
         }
 
         private Bitmap parseShape(XmlNode shapeNode, Size size) {
-            try {
-                Bitmap b;
-                XmlElement eShape;
-                if (shapeNode.NodeType == XmlNodeType.Document)
-                    eShape = ((XmlDocument)shapeNode).DocumentElement;
-                else
-                    eShape = (XmlElement)shapeNode;
-                shapeType type = (shapeType)int.Parse(eShape.GetAttribute("shape"));
-                XmlElement eSize = (XmlElement)shapeNode.SelectSingleNode("size");
-                if (eSize != null)
-                    b = new Bitmap(int.Parse(eSize.GetAttribute("width")), int.Parse(eSize.GetAttribute("height")));
-                else {
-                    b = new Bitmap(size.Width, size.Height);
+            XmlElement element = shapeNode.NodeType == XmlNodeType.Document
+                ? ((XmlDocument)shapeNode).DocumentElement
+                : (XmlElement)shapeNode;
+            shapeType type = (shapeType)int.Parse(element.GetAttribute("shape"));
+            XmlElement xmlSize = (XmlElement)element.SelectSingleNode("size");
+            Size imageSize = xmlSize == null ? size : new Size(
+                int.Parse(xmlSize.GetAttribute("width")),
+                int.Parse(xmlSize.GetAttribute("height")));
+            using (Bitmap bitmap = new Bitmap(imageSize.Width, imageSize.Height))
+            using (Graphics graphics = Graphics.FromImage(bitmap))
+            using (GraphicsPath path = new GraphicsPath()) {
+                XmlElement solid = (XmlElement)element.SelectSingleNode("solid");
+                XmlElement gradient = (XmlElement)element.SelectSingleNode("gradient");
+                Brush brush = solid != null
+                    ? (Brush)new SolidBrush(stringToColor(solid.GetAttribute("color")))
+                    : gradient != null ? parseGradient(gradient) : new SolidBrush(Color.Black);
+                if (type == shapeType.rectangle)
+                    path.AddRectangle(new RectangleF(0, 0, bitmap.Width, bitmap.Height));
+                else if (type == shapeType.oval)
+                    path.AddEllipse(0, 0, bitmap.Width, bitmap.Height);
+                else if (type != shapeType.line && type != shapeType.ring)
+                    throw new InvalidDataException("Unsupported Android shape type: " + type);
+                if (brush != null) {
+                    using (brush)
+                        graphics.FillPath(brush, path);
                 }
-                Graphics g = Graphics.FromImage(b);
-                GraphicsPath p = new GraphicsPath();
-                Brush brush;
-                XmlElement ebrush = (XmlElement)eShape.SelectSingleNode("solid");
-                if (ebrush != null) {
-                    brush = new SolidBrush(stringToColor(ebrush.GetAttribute("color")));
-                } else {
-                    if ((ebrush = (XmlElement)eShape.SelectSingleNode("gradient")) != null) {
-                        brush = parseGradient(ebrush);
-                    } else
-                        brush = new SolidBrush(Color.Black);
-                }
-                if (type == shapeType.rectangle) {
-                    XmlElement corners = (XmlElement)eShape.SelectSingleNode("corners");
-                    if (corners != null) {
-                        //ToDo, support round corner
-                    }
-                    p.AddRectangle(new RectangleF(0, 0, b.Width, b.Height));
-                } else if (type == shapeType.oval) {
-                    p.AddEllipse(0, 0, b.Width, b.Height);
-                } else if (type == shapeType.line) {
-                    // todo: support line
-
-                } else if (type == shapeType.ring) {
-                    // todo: support ring
-                } else {
-                    throw new Exception("Unsupported shape type: " + (int)type);
-                }
-                g.FillPath(brush, p);
-                return Utility.ResizeBitmap(b, size);
-            } catch (Exception ex) {
-                throw new Exception(ex.Message + "\nError happending during parsing shape:" + shapeNode.InnerXml);
+                return Utility.ResizeBitmap(bitmap, size);
             }
         }
 
