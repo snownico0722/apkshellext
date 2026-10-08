@@ -62,6 +62,8 @@ Originally this project hosted on [GoogleCode](code.google.com/p/apkshellext), n
 ### Maintainer fork: building and installing
 
 Development and release build instructions for this fork are in [DEVELOPMENT.md](DEVELOPMENT.md).
+**Language:** Simplified Chinese and English are built into `ApkShellext2.dll`; no separate Chinese language download is needed. New installs select Simplified Chinese on a Simplified Chinese Windows display language (other systems use English or a matching optional language pack). The language can always be changed in Preferences. Existing optional language packs remain supported.
+
 The optional QR download service is **not installed by the normal shell extension installer**. If configured separately, it shares only files explicitly staged under `%ProgramData%\\ApkShellext2\\Share` and uses random per-download links.
 
 Use the original `install.bat` and `uninstall.bat` from a permanent extracted release folder. They register/unregister the shell handlers for both Windows bitnesses without installing a background update service. Existing icons may need an Explorer restart to refresh.
