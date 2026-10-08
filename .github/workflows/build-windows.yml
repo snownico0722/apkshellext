@@ -16,6 +16,18 @@ jobs:
           submodules: recursive
       - name: Configure MSBuild
         uses: microsoft/setup-msbuild@v3
+      - name: Validate packaging script syntax before the native build
+        shell: pwsh
+        run: |
+          foreach ($script in @('scripts/package-release.ps1', 'smoke-tests/VerifyPackagedRuntime.ps1')) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              (Join-Path $env:GITHUB_WORKSPACE $script), [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors.Count -gt 0) {
+              throw "Invalid PowerShell in $script : $($errors[0].Message)"
+            }
+          }
       - name: Build shell extension and original test app
         shell: pwsh
         run: msbuild ApkShellext2.sln /restore /m /p:Configuration=Release /p:Platform="Any CPU" /verbosity:minimal
