@@ -20,7 +20,13 @@ namespace ApkShellextIntegration {
                 // The context-menu handler launches a version-check thread on first use.
                 // Keep this CI test deterministic and offline.
                 using (RegistryKey key = Registry.CurrentUser.CreateSubKey(@"SOFTWARE\ApkShellext2"))
-                    key.SetValue("LastCheckUpdateTime", DateTime.Today.ToString());
+                    {
+                        key.SetValue("LastCheckUpdateTime", DateTime.Today.ToString());
+                        key.SetValue("EnableThumbnail", "True");
+                        key.SetValue("StretchThumbnail", "True");
+                        key.SetValue("ShowOverlayIcon", "False");
+                        key.SetValue("ShowOverLayIcon", "False");
+                    }
 
                 switch (suite) {
                     case "registration": CheckComActivation(); break;
