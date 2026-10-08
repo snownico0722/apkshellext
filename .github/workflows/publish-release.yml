@@ -35,6 +35,30 @@ jobs:
       - name: Verify and package release payload
         shell: pwsh
         run: ./scripts/package-release.ps1
+      - name: Verify standalone release dependencies in 64-bit and 32-bit .NET Framework
+        shell: pwsh
+        run: |
+          $archive = @(Get-ChildItem -Path dist -File | Where-Object { $_.Name -match '^ApkShellext2\.(7z|zip)
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = $env:GITHUB_REF_NAME.Substring('publish/'.Length)
+          $requested = (Get-Content '.github/release-trigger.txt' -Raw).Trim()
+          if ($tag -notmatch '^v[0-9]+\.[0-9]+\.[0-9]+$' -or $tag -ne $requested) {
+            throw "Release ref / trigger mismatch: $tag / $requested"
+          }
+          $assets = @(Get-ChildItem -Path 'dist' -File | ForEach-Object FullName)
+          if ($assets.Count -eq 0) { throw 'There are no release archives.' }
+          & gh release create $tag @assets --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "ApkShellExt $tag" --notes-file 'RELEASE_NOTES_v0.3.0.md' --latest
+          if ($LASTEXITCODE -ne 0) { throw "GitHub Release creation failed: $tag" }
+ } | Select-Object -First 1)
+          if ($archive.Count -ne 1) { throw "Missing primary release archive." }
+          $script = "./smoke-tests/VerifyPackagedRuntime.ps1"
+          & "$env:WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $script -ArchivePath $archive[0].FullName
+          if ($LASTEXITCODE -ne 0) { throw "Standalone x64 release runtime check failed." }
+          & "$env:WINDIR\SysWOW64\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $script -ArchivePath $archive[0].FullName
+          if ($LASTEXITCODE -ne 0) { throw "Standalone x86 release runtime check failed." }
       - name: Publish versioned GitHub Release
         shell: pwsh
         env:
