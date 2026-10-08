@@ -337,4 +337,70 @@
   <data name="strPatreonTip" xml:space="preserve">
     <value>在 Patreon 上支持我</value>
   </data>
+  <data name="menuMoreDetails" xml:space="preserve">
+    <value>更多...</value>
+  </data>
+  <data name="detailsTitle" xml:space="preserve">
+    <value>应用详情</value>
+  </data>
+  <data name="detailsField" xml:space="preserve">
+    <value>属性</value>
+  </data>
+  <data name="detailsValue" xml:space="preserve">
+    <value>内容</value>
+  </data>
+  <data name="detailsFileName" xml:space="preserve">
+    <value>文件名</value>
+  </data>
+  <data name="detailsFilePath" xml:space="preserve">
+    <value>文件路径</value>
+  </data>
+  <data name="detailsFormat" xml:space="preserve">
+    <value>安装包格式</value>
+  </data>
+  <data name="detailsFileSize" xml:space="preserve">
+    <value>文件大小</value>
+  </data>
+  <data name="detailsModified" xml:space="preserve">
+    <value>修改时间</value>
+  </data>
+  <data name="detailsAppName" xml:space="preserve">
+    <value>应用名称</value>
+  </data>
+  <data name="detailsPackageName" xml:space="preserve">
+    <value>包名</value>
+  </data>
+  <data name="detailsVersion" xml:space="preserve">
+    <value>版本名称</value>
+  </data>
+  <data name="detailsRevision" xml:space="preserve">
+    <value>构建号 / 版本代码</value>
+  </data>
+  <data name="detailsPublisher" xml:space="preserve">
+    <value>发布者</value>
+  </data>
+  <data name="detailsAppId" xml:space="preserve">
+    <value>应用 ID</value>
+  </data>
+  <data name="detailsMinSdk" xml:space="preserve">
+    <value>最低 Android SDK</value>
+  </data>
+  <data name="detailsTargetSdk" xml:space="preserve">
+    <value>目标 Android SDK</value>
+  </data>
+  <data name="detailsDebuggable" xml:space="preserve">
+    <value>允许调试</value>
+  </data>
+  <data name="detailsCopyAll" xml:space="preserve">
+    <value>复制全部</value>
+  </data>
+  <data name="detailsClose" xml:space="preserve">
+    <value>关闭</value>
+  </data>
+  <data name="detailsReadError" xml:space="preserve">
+    <value>包内信息读取失败</value>
+  </data>
+  <data name="strPatternVariablesHint" xml:space="preserve">
+    <value>可用变量：%AppName%、%Package%、%Version%、%Revision%、%Publisher%、%FileSize%、%OS%、%LastModify%、%Debuggable%&#10;Android 清单属性：%Attr(manifest/application,label)%（标签路径、属性名）</value>
+  </data>
 </root>

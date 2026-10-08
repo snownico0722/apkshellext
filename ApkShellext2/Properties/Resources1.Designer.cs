@@ -713,5 +713,95 @@ namespace ApkShellext2.Properties {
                 return ResourceManager.GetString("twThumbnail", resourceCulture);
             }
         }
+
+        // Keys added for the unified settings page and the application details dialog.
+        internal static string menuMoreDetails {
+            get { return ResourceManager.GetString("menuMoreDetails", resourceCulture); }
+        }
+
+        internal static string detailsTitle {
+            get { return ResourceManager.GetString("detailsTitle", resourceCulture); }
+        }
+
+        internal static string detailsField {
+            get { return ResourceManager.GetString("detailsField", resourceCulture); }
+        }
+
+        internal static string detailsValue {
+            get { return ResourceManager.GetString("detailsValue", resourceCulture); }
+        }
+
+        internal static string detailsFileName {
+            get { return ResourceManager.GetString("detailsFileName", resourceCulture); }
+        }
+
+        internal static string detailsFilePath {
+            get { return ResourceManager.GetString("detailsFilePath", resourceCulture); }
+        }
+
+        internal static string detailsFormat {
+            get { return ResourceManager.GetString("detailsFormat", resourceCulture); }
+        }
+
+        internal static string detailsFileSize {
+            get { return ResourceManager.GetString("detailsFileSize", resourceCulture); }
+        }
+
+        internal static string detailsModified {
+            get { return ResourceManager.GetString("detailsModified", resourceCulture); }
+        }
+
+        internal static string detailsAppName {
+            get { return ResourceManager.GetString("detailsAppName", resourceCulture); }
+        }
+
+        internal static string detailsPackageName {
+            get { return ResourceManager.GetString("detailsPackageName", resourceCulture); }
+        }
+
+        internal static string detailsVersion {
+            get { return ResourceManager.GetString("detailsVersion", resourceCulture); }
+        }
+
+        internal static string detailsRevision {
+            get { return ResourceManager.GetString("detailsRevision", resourceCulture); }
+        }
+
+        internal static string detailsPublisher {
+            get { return ResourceManager.GetString("detailsPublisher", resourceCulture); }
+        }
+
+        internal static string detailsAppId {
+            get { return ResourceManager.GetString("detailsAppId", resourceCulture); }
+        }
+
+        internal static string detailsMinSdk {
+            get { return ResourceManager.GetString("detailsMinSdk", resourceCulture); }
+        }
+
+        internal static string detailsTargetSdk {
+            get { return ResourceManager.GetString("detailsTargetSdk", resourceCulture); }
+        }
+
+        internal static string detailsDebuggable {
+            get { return ResourceManager.GetString("detailsDebuggable", resourceCulture); }
+        }
+
+        internal static string detailsCopyAll {
+            get { return ResourceManager.GetString("detailsCopyAll", resourceCulture); }
+        }
+
+        internal static string detailsClose {
+            get { return ResourceManager.GetString("detailsClose", resourceCulture); }
+        }
+
+        internal static string detailsReadError {
+            get { return ResourceManager.GetString("detailsReadError", resourceCulture); }
+        }
+
+        internal static string strPatternVariablesHint {
+            get { return ResourceManager.GetString("strPatternVariablesHint", resourceCulture); }
+        }
+
     }
 }

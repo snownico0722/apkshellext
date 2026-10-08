@@ -336,4 +336,70 @@ By checking this, rename app file as %AppName%_%Version%_%Revision%, otherwise, 
   <data name="strPatreonTip" xml:space="preserve">
     <value>Support me on Patreon</value>
   </data>
+  <data name="menuMoreDetails" xml:space="preserve">
+    <value>More details...</value>
+  </data>
+  <data name="detailsTitle" xml:space="preserve">
+    <value>Application details</value>
+  </data>
+  <data name="detailsField" xml:space="preserve">
+    <value>Property</value>
+  </data>
+  <data name="detailsValue" xml:space="preserve">
+    <value>Value</value>
+  </data>
+  <data name="detailsFileName" xml:space="preserve">
+    <value>File name</value>
+  </data>
+  <data name="detailsFilePath" xml:space="preserve">
+    <value>File path</value>
+  </data>
+  <data name="detailsFormat" xml:space="preserve">
+    <value>Package format</value>
+  </data>
+  <data name="detailsFileSize" xml:space="preserve">
+    <value>File size</value>
+  </data>
+  <data name="detailsModified" xml:space="preserve">
+    <value>Modified</value>
+  </data>
+  <data name="detailsAppName" xml:space="preserve">
+    <value>App name</value>
+  </data>
+  <data name="detailsPackageName" xml:space="preserve">
+    <value>Package name</value>
+  </data>
+  <data name="detailsVersion" xml:space="preserve">
+    <value>Version</value>
+  </data>
+  <data name="detailsRevision" xml:space="preserve">
+    <value>Build / version code</value>
+  </data>
+  <data name="detailsPublisher" xml:space="preserve">
+    <value>Publisher</value>
+  </data>
+  <data name="detailsAppId" xml:space="preserve">
+    <value>App ID</value>
+  </data>
+  <data name="detailsMinSdk" xml:space="preserve">
+    <value>Minimum Android SDK</value>
+  </data>
+  <data name="detailsTargetSdk" xml:space="preserve">
+    <value>Target Android SDK</value>
+  </data>
+  <data name="detailsDebuggable" xml:space="preserve">
+    <value>Debuggable</value>
+  </data>
+  <data name="detailsCopyAll" xml:space="preserve">
+    <value>Copy all</value>
+  </data>
+  <data name="detailsClose" xml:space="preserve">
+    <value>Close</value>
+  </data>
+  <data name="detailsReadError" xml:space="preserve">
+    <value>Failed to read package metadata</value>
+  </data>
+  <data name="strPatternVariablesHint" xml:space="preserve">
+    <value>Variables: %AppName%, %Package%, %Version%, %Revision%, %Publisher%, %FileSize%, %OS%, %LastModify%, %Debuggable%&#10;Android manifest: %Attr(manifest/application,label)% (tag path, attribute)</value>
+  </data>
 </root>

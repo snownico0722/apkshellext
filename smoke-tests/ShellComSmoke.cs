@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Specialized;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
@@ -290,6 +291,7 @@ namespace ApkShellextIntegration {
                 string oldPattern = (string)key.GetValue("RenamePattern", null);
                 string oldReplace = (string)key.GetValue("ReplaceSpace", null);
                 string oldReplaceChar = (string)key.GetValue("ReplaceSpaceChar", null);
+                string oldInfoTip = (string)key.GetValue("ToolTipPattern", null);
                 try {
                     // Fresh installs must behave like the settings checkbox,
                     // which defaults to True, without the value ever being saved.
@@ -328,6 +330,27 @@ namespace ApkShellextIntegration {
                         dump.Invoke(menu, new object[] {
                             ShellFixtures.PathFor(dir, "broken.apk"), "AndroidManifest.xml"
                         });
+                        // Context commands must be flat, including both extract options
+                        // and the store links, with one single-file details entry.
+                        MethodInfo createMenu = type.GetMethod("CreateMenu",
+                            BindingFlags.NonPublic | BindingFlags.Instance);
+                        using (var strip = (ContextMenuStrip)createMenu.Invoke(menu, null)) {
+                            Require(strip.Items.Count == 1, "Expected one extension root menu");
+                            var root = strip.Items[0] as ToolStripMenuItem;
+                            Require(root != null, "Context menu root must be a menu item");
+                            bool foundMore = false;
+                            foreach (ToolStripItem item in root.DropDownItems) {
+                                var command = item as ToolStripMenuItem;
+                                if (command == null) continue;
+                                Require(command.DropDownItems.Count == 0,
+                                    "Context menu has an unexpected nested submenu: " + command.Text);
+                                if (command.Text == "More details..." || command.Text == "更多...") {
+                                    Require(command.Enabled, "Single-file details action should be enabled");
+                                    foundMore = true;
+                                }
+                            }
+                            Require(foundMore, "Missing single-file details command");
+                        }
                     } finally {
                         if (dataPointer != IntPtr.Zero) Marshal.Release(dataPointer);
                         Native.Release(menu);
@@ -362,26 +385,102 @@ namespace ApkShellextIntegration {
                         Thread.CurrentThread.CurrentUICulture = originalUICulture;
                     }
 
+                    Type detailsType = shellAssembly.GetType("ApkShellext2.AppDetailsDialog", true);
+                    MethodInfo readDetails = detailsType.GetMethod("ReadDetails",
+                        BindingFlags.NonPublic | BindingFlags.Static);
+                    var rows = (IEnumerable<KeyValuePair<string, string>>)readDetails.Invoke(
+                        null, new object[] { path });
+                    bool hasPackage = false;
+                    foreach (var row in rows)
+                        if (row.Value == ShellFixtures.PackageName) hasPackage = true;
+                    Require(hasPackage, "Details did not include the Android package name");
+                    foreach (var row in rows) {
+                        Require(row.Key != "Publisher" && row.Key != "发布者",
+                            "Android package namespace must not be reported as a verified publisher");
+                    }
+
+                    var brokenRows = (IEnumerable<KeyValuePair<string, string>>)readDetails.Invoke(
+                        null, new object[] { ShellFixtures.PathFor(dir, "broken.apk") });
+                    bool hasError = false;
+                    foreach (var row in brokenRows)
+                        if (row.Value.Contains("End of Central Directory") ||
+                            row.Key == "Failed to read package metadata" ||
+                            row.Key == "包内信息读取失败") hasError = true;
+                    Require(hasError, "Damaged APK details must report the read failure");
+
                     Type preferencesType = shellAssembly.GetType("ApkShellext2.Preferences", true);
                     using (Form preferences = (Form)Activator.CreateInstance(preferencesType)) {
+                        Require(!ContainsControl(preferences, typeof(TreeView)) &&
+                            !ContainsControl(preferences, typeof(LinkLabel)),
+                            "Settings still contains tree or wiki/translation navigation");
+                        Require(ContainsScrollingPanel(preferences),
+                            "Unified settings page must scroll");
+
+                        // The real Load event enables persistence; constructor alone must
+                        // not touch the stored values.
+                        preferencesType.GetMethod("Preferences_Load",
+                            BindingFlags.NonPublic | BindingFlags.Instance).Invoke(
+                                preferences, new object[] { preferences, EventArgs.Empty });
                         FieldInfo field = preferencesType.GetField("txtRenamePattern",
                             BindingFlags.NonPublic | BindingFlags.Instance);
                         TextBox textbox = (TextBox)field.GetValue(preferences);
                         textbox.Text = "custom";
+                        Require((string)key.GetValue("RenamePattern", "") == "custom",
+                            "Rename pattern did not auto-save");
                         preferencesType.GetMethod("btnResetRenamePattern_Click",
                             BindingFlags.NonPublic | BindingFlags.Instance).Invoke(
                                 preferences, new object[] { preferences, EventArgs.Empty });
-                        Require(textbox.Text == "%AppName%_%Version%",
-                            "Reset rename pattern did not restore its default");
+                        Require(textbox.Text == "%AppName%_%Version%" &&
+                            (string)key.GetValue("RenamePattern", "") == textbox.Text,
+                            "Reset rename pattern did not persist its default");
+
+                        var toolTip = (TextBox)preferencesType.GetField("txtToolTipPattern",
+                            BindingFlags.NonPublic | BindingFlags.Instance).GetValue(preferences);
+                        toolTip.Text = "Version: %Version%";
+                        Require((string)key.GetValue("ToolTipPattern", "") == toolTip.Text,
+                            "Info tip pattern did not auto-save");
+
+                        var replacement = (TextBox)preferencesType.GetField("txtReplaceWhiteSpace",
+                            BindingFlags.NonPublic | BindingFlags.Instance).GetValue(preferences);
+                        replacement.Text = "__";
+                        Require((string)key.GetValue("ReplaceSpaceChar", "") == "__",
+                            "Whitespace replacement did not auto-save");
                     }
+
+                    CheckInvalidIpaStoreCommand(dir);
                 } finally {
                     RestoreValue(key, "EnableThumbnail", oldThumbnail);
                     RestoreValue(key, "RenamePattern", oldPattern);
                     RestoreValue(key, "ReplaceSpace", oldReplace);
                     RestoreValue(key, "ReplaceSpaceChar", oldReplaceChar);
+                    RestoreValue(key, "ToolTipPattern", oldInfoTip);
                 }
             }
             Console.WriteLine("PASS: embedded Chinese/English COM UI, thumbnail defaults, rename settings and broken-APK menu command");
+        }
+
+        // Opening the store for a damaged IPA must not throw out of the Explorer
+        // context-menu callback. Previously the IpaReader constructor was outside try.
+        private static void CheckInvalidIpaStoreCommand(string dir) {
+            object menu = Native.Create(Native.Context);
+            IntPtr dataPointer = IntPtr.Zero;
+            try {
+                var data = new DataObject();
+                var paths = new StringCollection();
+                paths.Add(ShellFixtures.PathFor(dir, "invalid.ipa"));
+                data.SetFileDropList(paths);
+                dataPointer = Marshal.GetComInterfaceForObject(data,
+                    typeof(System.Runtime.InteropServices.ComTypes.IDataObject));
+                Native.Invoke<IShellExtInit>(menu, "Initialize",
+                    new object[] { IntPtr.Zero, dataPointer, IntPtr.Zero });
+                MethodInfo apple = menu.GetType().GetMethod("gotoAppleStore",
+                    BindingFlags.NonPublic | BindingFlags.Instance);
+                Require(apple != null, "Apple Store command no longer exists");
+                apple.Invoke(menu, null);
+            } finally {
+                if (dataPointer != IntPtr.Zero) Marshal.Release(dataPointer);
+                Native.Release(menu);
+            }
         }
 
         private static void RestoreValue(RegistryKey key, string name, string original) {
@@ -389,6 +488,23 @@ namespace ApkShellextIntegration {
                 key.DeleteValue(name, false);
             else
                 key.SetValue(name, original);
+        }
+
+        private static bool ContainsControl(Control parent, Type kind) {
+            foreach (Control child in parent.Controls) {
+                if (kind.IsInstanceOfType(child) || ContainsControl(child, kind))
+                    return true;
+            }
+            return false;
+        }
+
+        private static bool ContainsScrollingPanel(Control parent) {
+            foreach (Control child in parent.Controls) {
+                var panel = child as Panel;
+                if (panel != null && panel.AutoScroll) return true;
+                if (ContainsScrollingPanel(child)) return true;
+            }
+            return false;
         }
 
         private static void CheckContextMenu(string[] files) {

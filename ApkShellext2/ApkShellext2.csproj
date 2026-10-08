@@ -88,6 +88,7 @@
     <Compile Include="ApkContextMenu.cs" />
     <Compile Include="ApkThumbnailHandler.cs" />
     <Compile Include="AppPackageReader.cs" />
+    <Compile Include="AppDetailsDialog.cs" />
     <Compile Include="AppxBundleReader.cs" />
     <Compile Include="AppxReader.cs" />
     <Compile Include="Ionic.Zlib\Ionic.Zlib\CRC32.cs" />

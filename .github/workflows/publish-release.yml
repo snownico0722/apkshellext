@@ -98,4 +98,10 @@ jobs:
             & gh release delete v0.3.0 --repo $env:GITHUB_REPOSITORY --cleanup-tag --yes
             if ($LASTEXITCODE -ne 0) { throw 'The obsolete v0.3.0 release could not be deleted.' }
           }
+          # Retire v1.0.0 only after v1.1.0 is uploaded and every asset verified.
+          # Do not rewrite Git history or remove the previous version prematurely.
+          if ($tag -eq 'v1.1.0' -and $env:GITHUB_REPOSITORY -eq 'snownico0722/apkshellext') {
+            & gh release delete v1.0.0 --repo $env:GITHUB_REPOSITORY --cleanup-tag --yes
+            if ($LASTEXITCODE -ne 0) { throw 'The obsolete v1.0.0 release could not be deleted.' }
+          }
 
