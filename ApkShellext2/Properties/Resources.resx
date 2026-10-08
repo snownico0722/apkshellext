@@ -337,7 +337,7 @@ By checking this, rename app file as %AppName%_%Version%_%Revision%, otherwise, 
     <value>Support me on Patreon</value>
   </data>
   <data name="menuMoreDetails" xml:space="preserve">
-    <value>More details...</value>
+    <value>View more information</value>
   </data>
   <data name="detailsTitle" xml:space="preserve">
     <value>Application details</value>

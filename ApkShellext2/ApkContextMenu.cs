@@ -129,6 +129,14 @@ namespace ApkShellext2 {
                 mainMenu.DropDownItems.Add(dumpOtherMenu);
             }
 
+            // The single-file details command is available for every supported package type.
+            var detailsMenu = new ToolStripMenuItem {
+                Text = Resources.menuMoreDetails,
+                Enabled = singleSelected
+            };
+            detailsMenu.Click += (sender, args) => showDetails();
+            mainMenu.DropDownItems.Add(detailsMenu);
+
             mainMenu.DropDownItems.Add("-");
 
             if (hasapk) {
@@ -236,22 +244,16 @@ namespace ApkShellext2 {
             */
             #endregion
 
-            // The single-file details command is available for every supported package type.
-            var detailsMenu = new ToolStripMenuItem {
-                Text = Resources.menuMoreDetails,
-                Enabled = singleSelected
-            };
-            detailsMenu.Click += (sender, args) => showDetails();
-            mainMenu.DropDownItems.Add(detailsMenu);
 
             #region Preferences Menu
             var settingsMenu = new ToolStripMenuItem {
                 Text = Resources.menuPreferences,
                 Image = Utility.ResizeBitmap(Properties.NonLocalizeResources.logo, size)
             };
-            if (mainMenu.DropDownItems.Count > 1) {
+            // The first group already ends in a separator when all store links are hidden.
+            if (mainMenu.DropDownItems.Count > 0 &&
+                !(mainMenu.DropDownItems[mainMenu.DropDownItems.Count - 1] is ToolStripSeparator))
                 mainMenu.DropDownItems.Add("-");
-            }
             settingsMenu.Click += (sender, args) => showSettings();
             mainMenu.DropDownItems.Add(settingsMenu);
             #endregion

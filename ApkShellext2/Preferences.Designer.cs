@@ -48,6 +48,7 @@ namespace ApkShellext2 {
 
         // The five existing settings groups share one scrolling page; no tree navigation.
         private void InitializeComponent() {
+            this.SuspendLayout();
             components = new System.ComponentModel.Container();
             toolTip1 = new System.Windows.Forms.ToolTip(components) {
                 IsBalloon = true,
@@ -146,12 +147,14 @@ namespace ApkShellext2 {
                 Padding = new System.Windows.Forms.Padding(12, 8, 12, 16)
             };
             sections.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 100F));
+            sections.SuspendLayout();
             foreach (System.Windows.Forms.GroupBox group in new[] {
                 grpGeneral, grpIcon, grpContextMenu, grpRenaming, grpInfoTip
             }) {
                 sections.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.AutoSize));
                 sections.Controls.Add(group, 0, sections.RowCount++);
             }
+            sections.ResumeLayout(true);
 
             var scroll = new System.Windows.Forms.Panel {
                 Dock = System.Windows.Forms.DockStyle.Fill,
@@ -167,22 +170,17 @@ namespace ApkShellext2 {
             };
             buttons.Controls.Add(btnOK);
 
-            var root = new System.Windows.Forms.TableLayoutPanel {
-                Dock = System.Windows.Forms.DockStyle.Fill,
-                ColumnCount = 1,
-                RowCount = 2
-            };
-            root.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 100F));
-            root.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100F));
-            root.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 48F));
-            root.Controls.Add(scroll, 0, 0);
-            root.Controls.Add(buttons, 0, 1);
+            // A scrolling content area and a fixed footer only require simple docking,
+            // not another auto-sizing TableLayoutPanel.
+            buttons.Dock = System.Windows.Forms.DockStyle.Bottom;
+            buttons.Height = 48;
 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(600, 590);
             this.MinimumSize = new System.Drawing.Size(470, 380);
-            this.Controls.Add(root);
+            this.Controls.Add(scroll);
+            this.Controls.Add(buttons);
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.SizableToolWindow;
             this.Name = "Preferences";
             this.ShowIcon = false;
@@ -190,7 +188,7 @@ namespace ApkShellext2 {
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.AcceptButton = btnOK;
             this.FormClosed += Preferences_FormClosed;
-            this.Load += Preferences_Load;
+            this.ResumeLayout(true);
         }
 
         private static System.Windows.Forms.GroupBox NewGroup(string text) {
@@ -244,11 +242,13 @@ namespace ApkShellext2 {
                 Dock = System.Windows.Forms.DockStyle.Top,
                 Padding = new System.Windows.Forms.Padding(6, 8, 6, 4)
             };
+            layout.SuspendLayout();
             layout.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 100F));
             foreach (var control in controls) {
                 layout.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.AutoSize));
                 layout.Controls.Add(control, 0, layout.RowCount++);
             }
+            layout.ResumeLayout(true);
             group.Controls.Add(layout);
         }
     }

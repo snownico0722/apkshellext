@@ -1,5 +1,5 @@
 using System;
-using System.Configuration;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
@@ -12,63 +12,98 @@ namespace ApkShellext2 {
     public partial class Preferences : Form {
         private bool formLoaded;
         private bool needClearThumbnailCache;
+        private CultureInfo[] supportedLanguages;
 
         public string currentFile = "";
 
         public Preferences() {
             InitializeComponent();
+            // Avoid repeated layout while populating controls that have no native handles yet.
+            SuspendLayoutTree(this);
+            try {
+                InitializeSettings();
+            } finally {
+                ResumeLayoutTree(this);
+            }
+            // This buffers the form background, not the child windows.
+            DoubleBuffered = true;
         }
 
-        private void Preferences_Load(object sender, EventArgs e) {
-            if (formLoaded)
-                return;
-
+        private void InitializeSettings() {
             Utility.Localize();
-            Log("Using setting file from: " +
-                ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.PerUserRoamingAndLocal).FilePath);
+            var settings = Utility.GetSettingsSnapshot(new Dictionary<string, string> {
+                { "ShowOverLayIcon", "False" },
+                { "ShowIpaIcon", "True" },
+                { "ShowAppxIcon", "False" },
+                { "StretchThumbnail", "True" },
+                { "EnableThumbnail", "True" },
+                { "SupportAdaptiveIcon", "False" },
+                { "ShowAppStoreWhenMultiSelected", "True" },
+                { "ShowMenuIcon", "True" },
+                { "ShowNewVersion", "True" },
+                { "ShowGooglePlay", "True" },
+                { "ShowAmazonStore", "True" },
+                { "ShowAppleStore", "True" },
+                { "ShowMSStore", "True" },
+                { "ShowApkMirror", "False" },
+                { "RenamePattern", NonLocalizeResources.strRenamePatternDefault },
+                { "ReplaceSpace", "False" },
+                { "ReplaceSpaceChar", "_" },
+                { "ToolTipPattern", NonLocalizeResources.strInfoTipDefault }
+            });
 
-            CultureInfo[] languages = Utility.getSupportedLanguages();
+            supportedLanguages = Utility.getSupportedLanguages();
             int selectedLanguage = 0;
-            for (int i = 0; i < languages.Length; i++) {
-                combLanguage.Items.Add(languages[i].NativeName);
-                if (languages[i].Name == Thread.CurrentThread.CurrentUICulture.Name)
+            for (int i = 0; i < supportedLanguages.Length; i++) {
+                combLanguage.Items.Add(supportedLanguages[i].NativeName);
+                if (supportedLanguages[i].Name == Thread.CurrentThread.CurrentUICulture.Name)
                     selectedLanguage = i;
             }
             if (combLanguage.Items.Count > 0)
                 combLanguage.SelectedIndex = selectedLanguage;
 
-            ckShowOverlay.Checked = Utility.GetSetting("ShowOverLayIcon", "False") == "True";
-            ckShowIPA.Checked = Utility.GetSetting("ShowIpaIcon", "True") == "True";
-            ckShowAppxIcon.Checked = Utility.GetSetting("ShowAppxIcon", "False") == "True";
-            ckStretchThumbnail.Checked = Utility.GetSetting("StretchThumbnail", "True") == "True";
-            ckEnableThumbnail.Checked = Utility.GetSetting("EnableThumbnail", "True") == "True";
-            ckAdaptiveIconSupport.Checked = Utility.GetSetting("SupportAdaptiveIcon", "False") == "True";
+            ckShowOverlay.Checked = settings["ShowOverLayIcon"] == "True";
+            ckShowIPA.Checked = settings["ShowIpaIcon"] == "True";
+            ckShowAppxIcon.Checked = settings["ShowAppxIcon"] == "True";
+            ckStretchThumbnail.Checked = settings["StretchThumbnail"] == "True";
+            ckEnableThumbnail.Checked = settings["EnableThumbnail"] == "True";
+            ckAdaptiveIconSupport.Checked = settings["SupportAdaptiveIcon"] == "True";
 
-            ckAlwaysShowStore.Checked = Utility.GetSetting("ShowAppStoreWhenMultiSelected", "True") == "True";
-            ckShowMenuIcon.Checked = Utility.GetSetting("ShowMenuIcon", "True") == "True";
-            ckShowNewVersionInfo.Checked = Utility.GetSetting("ShowNewVersion", "True") == "True";
-            ckShowGoogle.Checked = Utility.GetSetting("ShowGooglePlay", "True") == "True";
-            ckShowAmazon.Checked = Utility.GetSetting("ShowAmazonStore", "True") == "True";
-            ckShowApple.Checked = Utility.GetSetting("ShowAppleStore", "True") == "True";
-            ckShowMS.Checked = Utility.GetSetting("ShowMSStore", "True") == "True";
-            ckShowAM.Checked = Utility.GetSetting("ShowApkMirror", "False") == "True";
+            ckAlwaysShowStore.Checked = settings["ShowAppStoreWhenMultiSelected"] == "True";
+            ckShowMenuIcon.Checked = settings["ShowMenuIcon"] == "True";
+            ckShowNewVersionInfo.Checked = settings["ShowNewVersion"] == "True";
+            ckShowGoogle.Checked = settings["ShowGooglePlay"] == "True";
+            ckShowAmazon.Checked = settings["ShowAmazonStore"] == "True";
+            ckShowApple.Checked = settings["ShowAppleStore"] == "True";
+            ckShowMS.Checked = settings["ShowMSStore"] == "True";
+            ckShowAM.Checked = settings["ShowApkMirror"] == "True";
 
-            txtRenamePattern.Text = Utility.GetSetting("RenamePattern", NonLocalizeResources.strRenamePatternDefault);
-            ckReplaceSpace.Checked = Utility.GetSetting("ReplaceSpace", "False") == "True";
-            txtReplaceWhiteSpace.Text = Utility.GetSetting("ReplaceSpaceChar", "_");
+            txtRenamePattern.Text = settings["RenamePattern"];
+            ckReplaceSpace.Checked = settings["ReplaceSpace"] == "True";
+            txtReplaceWhiteSpace.Text = settings["ReplaceSpaceChar"];
             txtReplaceWhiteSpace.Enabled = ckReplaceSpace.Checked;
-            txtToolTipPattern.Text = Utility.GetSetting("ToolTipPattern", NonLocalizeResources.strInfoTipDefault);
+            txtToolTipPattern.Text = settings["ToolTipPattern"];
 
             btnUpdate.Image = Utility.ResizeBitmap(
                 Utility.NewVersionAvailible() ? NonLocalizeResources.iconUpdate : NonLocalizeResources.iconGitHub, 16);
             btnUpdate.TextImageRelation = TextImageRelation.ImageBeforeText;
 
-            RefreshLocalizedText();
+            RefreshLocalizedTextCore();
             formLoaded = true;
         }
 
-        // Changing the language updates labels without resetting the current field values.
+        // Initial values are already set inside one suspended layout transaction.
+        // Language changes use the same text updates in their own transaction.
         private void RefreshLocalizedText() {
+            SuspendLayoutTree(this);
+            try {
+                RefreshLocalizedTextCore();
+            } finally {
+                ResumeLayoutTree(this);
+            }
+        }
+
+        private void RefreshLocalizedTextCore() {
             Text = Resources.strPreferencesCaption;
             grpGeneral.Text = Resources.twGeneral;
             grpIcon.Text = Resources.twIcon;
@@ -117,14 +152,30 @@ namespace ApkShellext2 {
             btnOK.Text = Resources.btnOK;
         }
 
+        // Only containers perform child layout; leaf controls do not need suspension.
+        private static void SuspendLayoutTree(Control control) {
+            if (!control.HasChildren)
+                return;
+            control.SuspendLayout();
+            foreach (Control child in control.Controls)
+                SuspendLayoutTree(child);
+        }
+
+        private static void ResumeLayoutTree(Control control) {
+            if (!control.HasChildren)
+                return;
+            foreach (Control child in control.Controls)
+                ResumeLayoutTree(child);
+            control.ResumeLayout(true);
+        }
+
         private void combLanguage_SelectedIndexChanged(object sender, EventArgs e) {
             if (!formLoaded || combLanguage.SelectedIndex < 0)
                 return;
-            CultureInfo[] languages = Utility.getSupportedLanguages();
-            if (combLanguage.SelectedIndex >= languages.Length)
+            if (supportedLanguages == null || combLanguage.SelectedIndex >= supportedLanguages.Length)
                 return;
 
-            Utility.SaveSetting("Language", languages[combLanguage.SelectedIndex].Name);
+            Utility.SaveSetting("Language", supportedLanguages[combLanguage.SelectedIndex].Name);
             Utility.Localize();
             RefreshLocalizedText();
         }
@@ -258,8 +309,5 @@ namespace ApkShellext2 {
             }
         }
 
-        private void Log(string message) {
-            Utility.Log(this, "", message);
-        }
     }
 }
