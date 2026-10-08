@@ -22,10 +22,10 @@ jobs:
         uses: microsoft/setup-msbuild@v2
       - name: Build application
         shell: pwsh
-        run: msbuild ApkShellext2.sln /m /p:Configuration=Release /p:Platform="Any CPU" /verbosity:minimal
+        run: msbuild ApkShellext2.sln /restore /m /p:Configuration=Release /p:Platform="Any CPU" /verbosity:minimal
       - name: Build smoke tests
         shell: pwsh
-        run: msbuild smoke-tests/ApkReaderSmokeTests.csproj /m /p:Configuration=Release /verbosity:minimal
+        run: msbuild smoke-tests/ApkReaderSmokeTests.csproj /restore /m /p:Configuration=Release /verbosity:minimal
       - name: Run smoke tests
         shell: pwsh
         run: '& "./smoke-tests/bin/Release/ApkReaderSmokeTests.exe"'
