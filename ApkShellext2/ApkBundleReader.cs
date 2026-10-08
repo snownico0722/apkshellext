@@ -29,7 +29,7 @@ namespace ApkQuickReader {
                 packageStream.Position = 0;
                 // The underlying file/COM stream remains owned by its caller,
                 // including when the ZIP constructor throws.
-                using (var borrowed = new BorrowedStream(packageStream))
+                using (var borrowed = new ApkReader.BorrowedStream(packageStream))
                 using (var zip = new ZipFile(borrowed)) {
                     zip.IsStreamOwner = false;
                     ZipEntry mainEntry = FindBaseApk(zip);
