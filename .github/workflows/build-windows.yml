@@ -22,6 +22,12 @@ jobs:
       - name: Build original optional service
         shell: pwsh
         run: msbuild ApkShellextService/apkShellextService.csproj /m /p:Configuration=Release /verbosity:minimal
+      - name: Build optional HTTP service regression harness
+        shell: pwsh
+        run: msbuild smoke-tests/ServiceSmokeTests.csproj /m /p:Configuration=Release /verbosity:minimal
+      - name: Verify optional service cannot expose arbitrary files
+        shell: pwsh
+        run: '& "./smoke-tests/bin/Release/ServiceSmokeTests.exe"'
       - name: Build APK reader smoke tests
         shell: pwsh
         run: msbuild smoke-tests/ApkReaderSmokeTests.csproj /restore /m /p:Configuration=Release /verbosity:minimal
