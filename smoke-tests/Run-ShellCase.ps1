@@ -1,7 +1,7 @@
 param(
     [Parameter(Mandatory = $true)][string]$TestAssembly,
     [Parameter(Mandatory = $true)][string]$Workspace,
-    [Parameter(Mandatory = $true)][ValidateSet('registration', 'valid', 'invalid', 'stress', 'downloading')][string]$Suite
+    [Parameter(Mandatory = $true)][ValidateSet('registration', 'valid', 'invalid', 'stress', 'downloading', 'settings')][string]$Suite
 )
 $ErrorActionPreference = 'Stop'
 try {
