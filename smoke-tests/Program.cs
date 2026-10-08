@@ -16,6 +16,7 @@ namespace ApkShellextSmokeTests {
             try {
                 CheckBrokenFileDoesNotRemainOpen(Path.Combine(dir, "broken.apk"));
                 CheckSuccessfulReadDoesNotRemainOpen(Path.Combine(dir, "valid.apk"));
+                CheckBooleanAndResourceGuards(Path.Combine(dir, "resources.apk"));
                 CheckInvalidBinaryManifestTerminates(Path.Combine(dir, "bad-manifest.apk"));
                 CheckFirstEntryUppercasePng(Path.Combine(dir, "first-entry.apk"));
                 CheckVectorPathRendering();
@@ -33,6 +34,90 @@ namespace ApkShellextSmokeTests {
                 return 1;
             } finally {
                 Directory.Delete(dir, true);
+            }
+        }
+
+        private static void ExpectInvalidChunk(Action action, string label) {
+            try {
+                action();
+            } catch (TargetInvocationException e) {
+                if (e.InnerException is InvalidDataException)
+                    return;
+                throw new Exception("Unexpected error in " + label, e.InnerException);
+            }
+            throw new Exception("Invalid Android chunk was accepted: " + label);
+        }
+
+        private static void CheckBooleanAndResourceGuards(string path) {
+            byte[] badXml = new byte[16];
+            badXml[0] = 3;
+            badXml[2] = 8;
+            badXml[4] = 16;
+            badXml[10] = 8; // second chunk has a valid header but zero size
+
+            // Minimal resources.arsc with one package and a zero-size type
+            // chunk. Without the cursor guard QuickSearchResource hangs.
+            byte[] badResources = new byte[64];
+            using (var stream = new MemoryStream(badResources))
+            using (var writer = new BinaryWriter(stream)) {
+                writer.Write((ushort)2);
+                writer.Write((ushort)12);
+                writer.Write(64);
+                writer.Write(1); // packageCount
+                writer.Write((ushort)1);
+                writer.Write((ushort)8);
+                writer.Write(8); // global string pool size
+                writer.Write((ushort)0x0200);
+                writer.Write((ushort)20);
+                writer.Write(44); // packageSize
+                writer.Write(1); // packageId
+                writer.Seek(40, SeekOrigin.Begin);
+                for (int i = 0; i < 2; i++) {
+                    writer.Write((ushort)1);
+                    writer.Write((ushort)8);
+                    writer.Write(8);
+                }
+                writer.Write((ushort)0x0201);
+                writer.Write((ushort)8);
+                writer.Write(0); // invalid resource subchunk
+            }
+
+            using (var archive = new ZipArchive(
+                new FileStream(path, FileMode.Create, FileAccess.Write), ZipArchiveMode.Create)) {
+                WriteEntry(archive, "androidmanifest.xml");
+                using (Stream entry = archive.CreateEntry("resources.arsc").Open())
+                    entry.Write(badResources, 0, badResources.Length);
+            }
+            using (var reader = new ApkReader(path)) {
+                MethodInfo convert = typeof(ApkReader).GetMethod("convertData",
+                    BindingFlags.NonPublic | BindingFlags.Instance);
+                if (!"false".Equals(convert.Invoke(reader,
+                    new object[] { badXml, DATA_TYPE.TYPE_INT_BOOLEAN, 0u })) ||
+                    !"true".Equals(convert.Invoke(reader,
+                    new object[] { badXml, DATA_TYPE.TYPE_INT_BOOLEAN, 1u })))
+                    throw new Exception("Android binary boolean true/false were reversed");
+
+                MethodInfo strings = typeof(ApkReader).GetMethod("QuickSearchStringPool",
+                    BindingFlags.NonPublic | BindingFlags.Instance);
+                MethodInfo map = typeof(ApkReader).GetMethod("QuickSearchCompressedXMlResMap",
+                    BindingFlags.NonPublic | BindingFlags.Instance);
+                MethodInfo resource = typeof(ApkReader).GetMethod("QuickSearchResource",
+                    BindingFlags.NonPublic | BindingFlags.Instance);
+                ExpectInvalidChunk(() => strings.Invoke(reader,
+                    new object[] { badXml, (uint)0 }), "Android string pool");
+                ExpectInvalidChunk(() => map.Invoke(reader,
+                    new object[] { badXml, (uint)0 }), "Android resource map");
+                ExpectInvalidChunk(() => resource.Invoke(reader,
+                    new object[] { 0x01010000u }), "Android resource table");
+
+                FieldInfo stack = typeof(ApkReader).GetField("searchstack",
+                    BindingFlags.NonPublic | BindingFlags.Instance);
+                var pending = (System.Collections.ICollection)stack.GetValue(reader);
+                if (pending.Count != 0)
+                    throw new Exception("Failed resource lookup left stale recursion state");
+            }
+            using (var exclusive = new FileStream(path, FileMode.Open,
+                FileAccess.ReadWrite, FileShare.None)) {
             }
         }
 
