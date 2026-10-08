@@ -90,7 +90,10 @@ namespace ApkShellext2 {
                     TryAdd(rows, Resources.detailsPackageName, () => reader.PackageName);
                     TryAdd(rows, Resources.detailsVersion, () => reader.Version);
                     TryAdd(rows, Resources.detailsRevision, () => reader.Revision);
-                    TryAdd(rows, Resources.detailsPublisher, () => reader.Publisher);
+                    // Android's reader derives Publisher from the package namespace, not
+                    // the app's verified developer or certificate. Do not mislabel that as a publisher.
+                    if (reader.Type != AppPackageReader.AppType.AndroidApp)
+                        TryAdd(rows, Resources.detailsPublisher, () => reader.Publisher);
                     TryAdd(rows, Resources.detailsAppId, () => reader.AppID);
 
                     var android = reader as ApkReader;
