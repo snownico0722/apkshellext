@@ -11,11 +11,11 @@ jobs:
     runs-on: windows-2022
     steps:
       - name: Checkout with the original dependencies
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: recursive
       - name: Configure MSBuild
-        uses: microsoft/setup-msbuild@v2
+        uses: microsoft/setup-msbuild@v3
       - name: Build shell extension and original test app
         shell: pwsh
         run: msbuild ApkShellext2.sln /restore /m /p:Configuration=Release /p:Platform="Any CPU" /verbosity:minimal
@@ -60,13 +60,13 @@ jobs:
           & "$env:WINDIR\SysWOW64\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $script -ArchivePath $archive[0].FullName
           if ($LASTEXITCODE -ne 0) { throw "Standalone x86 release runtime check failed." }
       - name: Upload release archives
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: apkshellext2-release-archives
           path: dist/*
           if-no-files-found: error
       - name: Keep build output for manual Explorer smoke tests
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: apkshellext2-windows-release
           path: ApkShellext2/bin/Release/
