@@ -250,9 +250,10 @@ namespace ApkShellext2 {
                 Text = Resources.menuPreferences,
                 Image = Utility.ResizeBitmap(Properties.NonLocalizeResources.logo, size)
             };
-            if (mainMenu.DropDownItems.Count > 1) {
+            // The first group already ends in a separator when all store links are hidden.
+            if (mainMenu.DropDownItems.Count > 0 &&
+                !(mainMenu.DropDownItems[mainMenu.DropDownItems.Count - 1] is ToolStripSeparator))
                 mainMenu.DropDownItems.Add("-");
-            }
             settingsMenu.Click += (sender, args) => showSettings();
             mainMenu.DropDownItems.Add(settingsMenu);
             #endregion

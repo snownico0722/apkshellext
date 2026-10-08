@@ -292,6 +292,11 @@ namespace ApkShellextIntegration {
                 string oldReplace = (string)key.GetValue("ReplaceSpace", null);
                 string oldReplaceChar = (string)key.GetValue("ReplaceSpaceChar", null);
                 string oldInfoTip = (string)key.GetValue("ToolTipPattern", null);
+                string[] storeKeys = { "ShowGooglePlay", "ShowAmazonStore",
+                    "ShowApkMirror", "ShowAppleStore", "ShowMSStore" };
+                var savedStores = new Dictionary<string, string>();
+                foreach (string store in storeKeys)
+                    savedStores.Add(store, (string)key.GetValue(store, null));
                 try {
                     // Fresh installs must behave like the settings checkbox,
                     // which defaults to True, without the value ever being saved.
@@ -362,6 +367,18 @@ namespace ApkShellextIntegration {
                             Require(xmlIndex >= 0 && detailsIndex == xmlIndex + 1 &&
                                 detailsIndex < separatorIndex,
                                 "Details must appear immediately below Extract XML in the first menu group");
+                        }
+
+                        // Optional store entries can all be disabled. Do not leave
+                        // two adjacent separators between details and settings.
+                        foreach (string store in storeKeys)
+                            key.SetValue(store, "False");
+                        using (var strip = (ContextMenuStrip)createMenu.Invoke(menu, null)) {
+                            var root = (ToolStripMenuItem)strip.Items[0];
+                            for (int i = 1; i < root.DropDownItems.Count; i++)
+                                Require(!(root.DropDownItems[i - 1] is ToolStripSeparator &&
+                                    root.DropDownItems[i] is ToolStripSeparator),
+                                    "Disabled store commands left consecutive separators");
                         }
                     } finally {
                         if (dataPointer != IntPtr.Zero) Marshal.Release(dataPointer);
@@ -476,6 +493,8 @@ namespace ApkShellextIntegration {
                     RestoreValue(key, "ReplaceSpace", oldReplace);
                     RestoreValue(key, "ReplaceSpaceChar", oldReplaceChar);
                     RestoreValue(key, "ToolTipPattern", oldInfoTip);
+                    foreach (var entry in savedStores)
+                        RestoreValue(key, entry.Key, entry.Value);
                 }
             }
             Console.WriteLine("PASS: embedded Chinese/English COM UI, thumbnail defaults, rename settings and broken-APK menu command");
@@ -491,6 +510,7 @@ namespace ApkShellextIntegration {
                     bool shown = false;
                     form.Shown += (sender, args) => shown = true;
                     form.Show();
+                    long afterShowMs = stopwatch.ElapsedMilliseconds;
                     Application.DoEvents();
                     Require(shown && form.IsHandleCreated,
                         "Settings form did not reach the first Shown event");
@@ -504,7 +524,9 @@ namespace ApkShellextIntegration {
                         "Settings content and footer overlap or extend outside the window");
                     Console.WriteLine("METRIC settings-open sample=" + i +
                         " constructor_ms=" + constructorMs +
-                        " show_paint_ms=" + (stopwatch.ElapsedMilliseconds - constructorMs));
+                        " show_paint_ms=" + (stopwatch.ElapsedMilliseconds - constructorMs) +
+                        " show_ms=" + (afterShowMs - constructorMs) +
+                        " pump_ms=" + (stopwatch.ElapsedMilliseconds - afterShowMs));
                     form.Close();
                 }
             }
