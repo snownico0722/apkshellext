@@ -5,7 +5,8 @@ using System.IO;
 using System.Net;
 using System.ServiceProcess;
 using System.Threading;
-using System.Collections.Generic;
+using System.Collections.Concurrent;
+using System.Text;
 
 namespace ApkShellext2 {
     class apkShellextService : ServiceBase {
@@ -30,39 +31,25 @@ namespace ApkShellext2 {
 
         private WebServer ws;
 
-        private static string LocalIPAddress() {
-            var card = System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces()[0];
-            var str = card.GetIPProperties().GatewayAddresses;
-            
-            IPHostEntry host;
-            string localIP = "";
-            host = Dns.GetHostEntry(Dns.GetHostName());
-            foreach (IPAddress ip in host.AddressList) {
-                if (ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork) {
-                    localIP = ip.ToString();
-                    break;
-                }
-            }
-            return localIP;
-        }
+        // This legacy QR download service is optional, not installed by the
+        // normal Shell extension installer. It may only share files explicitly
+        // staged in this directory, never an arbitrary LocalSystem-readable path.
+        private static readonly string ShareRoot = Path.GetFullPath(Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+            "ApkShellext2", "Share"));
 
         protected override void OnStart(string[] args) {
             base.OnStart(args);
-
-            string[] prefixes = new string[] {
-                @"http://*:42728",
-                @"http://localhost:42728/",
-                @"http://"+LocalIPAddress()+@":42728/",
-                @"http://127.0.0.1:42728/"
-            };
-
-            ws = new WebServer(SendResponse, prefixes);
+            Directory.CreateDirectory(ShareRoot);
+            // Valid HttpListener wildcard prefix, with a required trailing '/'.
+            // Remote download requests need a random per-file token.
+            ws = new WebServer(SendResponse, "http://+:42728/");
             ws.Run();
         }
 
         protected override void OnStop() {
+            if (ws != null) ws.Stop();
             base.OnStop();
-            ws.Stop();
         }
 
         /// <summary>
@@ -80,20 +67,34 @@ namespace ApkShellext2 {
             base.OnCustomCommand(command);
         }
 
-        Dictionary<string, string> pathList = new Dictionary<string,string>();
-        
+        private readonly ConcurrentDictionary<string, string> pathList =
+            new ConcurrentDictionary<string, string>();
+
         public string SendResponse(HttpListenerRequest request) {
-            if (request.QueryString["md5"] != null) {
-                if (!pathList.ContainsKey(request.QueryString["md5"])) {
-                    pathList.Add(request.QueryString["md5"], request.QueryString["path"]);
-                }
-                return "";
-            } else {
-                string md5 = request.RawUrl.Replace(@"/", "");
-                if (pathList.ContainsKey(md5))
-                    return pathList[md5];
-                return "";
+            string requestedPath = request.QueryString["path"];
+            if (requestedPath != null) {
+                // Only a process on this machine can register a shared file.
+                // The endpoint never accepts a supplied download token.
+                if (request.RemoteEndPoint == null ||
+                    !IPAddress.IsLoopback(request.RemoteEndPoint.Address))
+                    return "";
+                string path;
+                try { path = Path.GetFullPath(requestedPath); }
+                catch { return ""; }
+                string prefix = ShareRoot.TrimEnd(Path.DirectorySeparatorChar) +
+                    Path.DirectorySeparatorChar;
+                if (!path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) ||
+                    !File.Exists(path))
+                    return "";
+                string token = Guid.NewGuid().ToString("N");
+                pathList[token] = path;
+                return "token:" + token;
             }
+
+            string id = request.Url == null ? "" : request.Url.AbsolutePath.Trim('/');
+            string sharedFile;
+            return id.Length == 32 && pathList.TryGetValue(id, out sharedFile)
+                ? sharedFile : "";
         }
     }
 
@@ -141,16 +142,20 @@ namespace ApkShellext2 {
                             try
                             {
                                 string rstr = _responderMethod(ctx.Request);
-                                if (rstr != "") {
+                                if (rstr.StartsWith("token:", StringComparison.Ordinal)) {
+                                    byte[] token = Encoding.ASCII.GetBytes(rstr.Substring(6));
+                                    ctx.Response.ContentType = "text/plain";
+                                    ctx.Response.ContentLength64 = token.Length;
+                                    ctx.Response.OutputStream.Write(token, 0, token.Length);
+                                } else if (rstr != "") {
                                     string filename = Path.GetFileName(rstr);
-                                    using (FileStream fs = new FileStream(rstr, FileMode.Open)) {
-                                        using (BinaryReader sr = new BinaryReader(fs)) {
-                                            byte[] buf = sr.ReadBytes((int)sr.BaseStream.Length);
-                                            ctx.Response.ContentType = "application/octet-stream";
-                                            ctx.Response.AddHeader("Content-Disposition", "attachment; filename=\"" + filename + "\"");
-                                            ctx.Response.ContentLength64 = buf.Length;
-                                            ctx.Response.OutputStream.Write(buf, 0, buf.Length);
-                                        }
+                                    using (FileStream fs = new FileStream(rstr, FileMode.Open,
+                                        FileAccess.Read, FileShare.ReadWrite | FileShare.Delete)) {
+                                        ctx.Response.ContentType = "application/octet-stream";
+                                        ctx.Response.AddHeader("Content-Disposition",
+                                            "attachment; filename=\"" + filename + "\"");
+                                        ctx.Response.ContentLength64 = fs.Length;
+                                        fs.CopyTo(ctx.Response.OutputStream);
                                     }
                                 }                         
                             }
