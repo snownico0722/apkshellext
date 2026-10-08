@@ -69,11 +69,13 @@ public static class ApkShellextPackageProbe {
         ResourceManager labels = (ResourceManager)property.GetValue(null, null);
         if (labels.GetType().Name != "EmbeddedChineseResourceManager")
             throw new Exception("The release DLL uses the old satellite-only resource manager.");
-        if (labels.GetString("menuMain", CultureInfo.GetCultureInfo("zh-CN")) !=
-            "APK文件助手" ||
-            labels.GetString("menuMain", CultureInfo.GetCultureInfo("en-US")) !=
-            "APK Shell Extension")
-            throw new Exception("The extracted release cannot switch between Chinese and English.");
+        string chineseLabel = labels.GetString("menuMain", CultureInfo.GetCultureInfo("zh-CN"));
+        string englishLabel = labels.GetString("menuMain", CultureInfo.GetCultureInfo("en-US"));
+        // This test script runs in legacy PowerShell 5.1, which may not read
+        // UTF-8 without a BOM correctly. Keep expected text ASCII-only here.
+        if (chineseLabel != "APK\u6587\u4EF6\u52A9\u624B" || englishLabel != "APK Shell Extension")
+            throw new Exception("The extracted release cannot switch languages: " +
+                chineseLabel + " / " + englishLabel);
 
         Type apkType = assembly.GetType("ApkQuickReader.ApkReader", true);
         using (IDisposable reader = (IDisposable)Activator.CreateInstance(
