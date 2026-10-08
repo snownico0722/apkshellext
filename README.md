@@ -3,6 +3,7 @@
 
 A Windows shell extension supporting icon for files of
 * .apk (android package)
+* .xapk .apks .apkm (Android compound/split packages; base APK icon and metadata)
 * .ipa (iOS app package)
 * .appx .appxbundle (Windows phone 8.1/10 app package, .xap is not supported)
 

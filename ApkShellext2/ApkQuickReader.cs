@@ -1162,6 +1162,12 @@ namespace ApkQuickReader
             openStream(stream, false);
         }
 
+        // Used by readers that create and own a temporary extracted stream.
+        protected ApkReader(Stream stream, bool takeOwnership) {
+            Log("Opening APK from an owned stream");
+            openStream(stream, takeOwnership);
+        }
+
         // Streams supplied by shell handlers remain owned by the caller.
         private void openStream(Stream stream, bool ownsStream) {
             inputStream = stream;
@@ -1211,7 +1217,7 @@ namespace ApkQuickReader
 
         // ZipFile's constructor owns its argument until initialization succeeds.
         // This wrapper prevents it from closing a Windows-owned COM stream.
-        private sealed class BorrowedStream : Stream {
+        internal sealed class BorrowedStream : Stream {
             private readonly Stream inner;
             public BorrowedStream(Stream inner) { this.inner = inner; }
             public override bool CanRead { get { return inner.CanRead; } }
