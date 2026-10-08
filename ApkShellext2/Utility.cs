@@ -224,55 +224,69 @@ namespace ApkShellext2 {
         }
 
         public static void CheckUpdate() {
+            bool locked = false;
             try {
                 checkUpdateMutex.WaitOne();
-                DateTime t = DateTime.Parse(Utility.GetSetting("LastCheckUpdateTime", "0"));
-                if (t < System.DateTime.Today) {
-                    Utility.SaveSetting("LastCheckUpdateTime", System.DateTime.Today.ToString());
-                    Thread thUpdate = new Thread(new ThreadStart(() => { Utility.getLatestVersion(); }));
+                locked = true;
+                DateTime lastChecked;
+                if (!DateTime.TryParse(Utility.GetSetting("LastCheckUpdateTime", ""),
+                    CultureInfo.CurrentCulture, DateTimeStyles.None, out lastChecked))
+                    lastChecked = DateTime.MinValue;
+                if (lastChecked.Date < DateTime.Today) {
+                    Utility.SaveSetting("LastCheckUpdateTime", DateTime.Today.ToString("o"));
+                    Thread thUpdate = new Thread(getLatestVersion);
+                    thUpdate.IsBackground = true;
                     thUpdate.Start();
                 }
-            } catch { } finally {
-                checkUpdateMutex.ReleaseMutex();
+            } catch (Exception ex) {
+                Log(null, "Update", "Cannot schedule update check: " + ex.Message);
+            } finally {
+                if (locked)
+                    checkUpdateMutex.ReleaseMutex();
             }
+        }
+
+        internal static bool TryParseLatestVersion(string input, out Version version) {
+            version = null;
+            if (string.IsNullOrWhiteSpace(input))
+                return false;
+            // GitHub's releases/latest endpoint returns JSON, while older
+            // installations may still have a plain four-part version cached.
+            Match m = Regex.Match(input, @"""tag_name""\s*:\s*""v?(\d+(?:\.\d+){2,3})""",
+                RegexOptions.IgnoreCase);
+            string raw = m.Success ? m.Groups[1].Value : input.Trim();
+            Version parsed;
+            if (!Version.TryParse(raw, out parsed) || parsed.Build < 0)
+                return false;
+            version = new Version(parsed.Major, parsed.Minor, parsed.Build,
+                parsed.Revision < 0 ? 0 : parsed.Revision);
+            return true;
         }
 
         public static void getLatestVersion() {
             try {
-                byte[] buf = new byte[1024];
-                HttpWebRequest request = (HttpWebRequest)WebRequest.Create(Properties.NonLocalizeResources.urlGithubHomeLatest);
-                // execute the request
-                HttpWebResponse response = (HttpWebResponse)
-                    request.GetResponse();
-                // we will read data via the response stream
-                Stream resStream = response.GetResponseStream();
-                int count = resStream.Read(buf, 0, buf.Length);
-                string s = "";
-                if (count != 0) {
-                    s = Encoding.ASCII.GetString(buf, 0, count);
+                HttpWebRequest request = (HttpWebRequest)WebRequest.Create(
+                    Properties.NonLocalizeResources.urlGithubHomeLatest);
+                request.UserAgent = "ApkShellext2";
+                request.Timeout = 7000;
+                request.ReadWriteTimeout = 7000;
+                using (HttpWebResponse response = (HttpWebResponse)request.GetResponse())
+                using (StreamReader reader = new StreamReader(response.GetResponseStream())) {
+                    Version latest;
+                    if (TryParseLatestVersion(reader.ReadToEnd(), out latest)) {
+                        Utility.SaveSetting("LatestVersion", latest.ToString());
+                        Log(null, "Update", "Get the latest version: " + latest);
+                    }
                 }
-                s = Regex.Replace(s, @"\t|\n|\r", "");
-                Utility.SaveSetting("LatestVersion", s);
-                Log(null, "Update", "Get the latest version :" + s);
             } catch (Exception ex) {
                 Log(null, "Update", "Error During check update:" + ex.Message);
             }
         }
 
         public static bool NewVersionAvailible() {
-            string[] latestV = Utility.GetSetting("LatestVersion").Split(new Char[] { '.' });
-            if (latestV.Length != 4)
-                return false;
-            string[] curV = Assembly.GetExecutingAssembly().GetName().Version.ToString().Split(new Char[] { '.' });
-            // version number should be always 4 parts
-            for (int i = 0; i < latestV.Length; i++) {
-                if (latestV[i] != curV[i]) {
-                    if (float.Parse(latestV[i]) > float.Parse(curV[i]))
-                        return true;
-                    break;
-                }
-            }
-            return false;
+            Version latest;
+            return TryParseLatestVersion(Utility.GetSetting("LatestVersion"), out latest) &&
+                latest.CompareTo(Assembly.GetExecutingAssembly().GetName().Version) > 0;
         }
 
         // http://stackoverflow.com/questions/6803073/get-local-ip-address
