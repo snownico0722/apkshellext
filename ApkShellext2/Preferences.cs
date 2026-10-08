@@ -132,7 +132,6 @@ namespace ApkShellext2 {
             txtRenamePattern.Text = Utility.GetSetting("RenamePattern", NonLocalizeResources.strRenamePatternDefault);
 
             btnResetRenamePattern.Text = Resources.btnResetPattern;
-            btnResetRenamePattern_Click(this, new EventArgs());
 
             ckReplaceSpace.Text = Resources.strReplaceSpaceWith_;
             ckReplaceSpace.Checked = Utility.GetSetting("ReplaceSpace", "False") == "True";
