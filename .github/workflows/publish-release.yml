@@ -64,6 +64,17 @@ jobs:
           if ($tag -notmatch '^v[0-9]+\.[0-9]+\.[0-9]+$' -or $tag -ne $requested) {
             throw "Release ref / trigger mismatch: $tag / $requested"
           }
+          # A release tag must match the actual shipped CLR/Windows file version.
+          $assemblyPath = 'ApkShellext2/bin/Release/ApkShellext2.dll'
+          $expectedVersion = [Version]($tag.Substring(1) + '.0')
+          $actualVersion = [Reflection.AssemblyName]::GetAssemblyName(
+            (Resolve-Path -LiteralPath $assemblyPath).Path).Version
+          if ($actualVersion -ne $expectedVersion) {
+            throw "Release $tag does not match assembly version $actualVersion"
+          }
+          if (@(Get-ChildItem -Path 'dist' -File -Filter 'zh-CN.*').Count -ne 0) {
+            throw 'Simplified Chinese is embedded in the main DLL; do not publish a separate zh-CN pack.'
+          }
           $assets = @(Get-ChildItem -Path 'dist' -File | ForEach-Object FullName)
           if ($assets.Count -eq 0) { throw 'There are no release archives.' }
           $notes = "RELEASE_NOTES_$tag.md"
