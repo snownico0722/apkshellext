@@ -302,6 +302,7 @@ namespace ApkShellextIntegration {
                     key.SetValue("ReplaceSpaceChar", "--");
                     key.SetValue("RenamePattern", "%AppName%");
                     object menu = Native.Create(Native.Context);
+                    Assembly shellAssembly = menu.GetType().Assembly;
                     IntPtr dataPointer = IntPtr.Zero;
                     try {
                         var data = new DataObject();
@@ -331,7 +332,7 @@ namespace ApkShellextIntegration {
                         Native.Release(menu);
                     }
 
-                    Type preferencesType = Type.GetType("ApkShellext2.Preferences, ApkShellext2", true);
+                    Type preferencesType = shellAssembly.GetType("ApkShellext2.Preferences", true);
                     using (Form preferences = (Form)Activator.CreateInstance(preferencesType)) {
                         FieldInfo field = preferencesType.GetField("txtRenamePattern",
                             BindingFlags.NonPublic | BindingFlags.Instance);
