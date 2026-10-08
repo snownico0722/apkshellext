@@ -250,7 +250,7 @@ namespace ApkShellext2 {
         }
 
         private void btnResetRenamePattern_Click(object sender, EventArgs e) {
-            txtRenamePattern.Text = Utility.GetSetting("RenamePattern", NonLocalizeResources.strRenamePatternDefault);
+            txtRenamePattern.Text = NonLocalizeResources.strRenamePatternDefault;
         }
 
         private void ckShowApple_CheckedChanged(object sender, EventArgs e) {
