@@ -15,11 +15,11 @@ jobs:
     runs-on: windows-2022
     steps:
       - name: Checkout exact release commit with submodules
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: recursive
       - name: Configure MSBuild
-        uses: microsoft/setup-msbuild@v2
+        uses: microsoft/setup-msbuild@v3
       - name: Build application
         shell: pwsh
         run: msbuild ApkShellext2.sln /restore /m /p:Configuration=Release /p:Platform="Any CPU" /verbosity:minimal
