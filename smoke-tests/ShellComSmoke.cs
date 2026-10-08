@@ -35,6 +35,7 @@ namespace ApkShellextIntegration {
                     case "valid": CheckValidPackages(workspace); break;
                     case "invalid": CheckInvalidPackages(workspace); break;
                     case "stress": CheckRepeatedRequests(workspace); break;
+                    case "downloading": CheckDownloadInProgress(workspace); break;
                     default: throw new ArgumentException("Unknown test suite: " + suite);
                 }
                 Console.WriteLine("PASS: " + suite + " (" + IntPtr.Size * 8 + "-bit)");
@@ -117,6 +118,37 @@ namespace ApkShellextIntegration {
                 AssertFileIsWritable(path);
                 Console.WriteLine("PASS: invalid package does not crash or lock: " + filename);
             }
+        }
+
+        private static void CheckDownloadInProgress(string dir) {
+            byte[] full = File.ReadAllBytes(ShellFixtures.PathFor(dir, "sample.apk"));
+            string path = ShellFixtures.PathFor(dir, "downloading.apk");
+            int[] stages = {
+                0, 1, 8, 32, 64, 128, full.Length / 2, full.Length - 1
+            };
+            using (var writer = new FileStream(path, FileMode.Create,
+                FileAccess.ReadWrite, FileShare.ReadWrite | FileShare.Delete)) {
+                foreach (int size in stages) {
+                    writer.SetLength(0);
+                    writer.Write(full, 0, size);
+                    writer.Flush(true);
+                    // The shell may inspect the same file while a browser or
+                    // download manager is still writing it.
+                    CheckExtractIcon(path, false);
+                    CheckInfoTip(path, null);
+                    CheckContextMenu(new[] { path });
+                    CheckThumbnail(path, false);
+                }
+                writer.SetLength(0);
+                writer.Write(full, 0, full.Length);
+                writer.Flush(true);
+            }
+            CheckExtractIcon(path, true);
+            CheckInfoTip(path, ShellFixtures.AppName);
+            CheckThumbnail(path, true);
+            AssertFileIsWritable(path);
+            File.Delete(path);
+            Console.WriteLine("PASS: inspected APK during 8 partial-download stages and after completion");
         }
 
         private static void CheckRepeatedRequests(string dir) {
