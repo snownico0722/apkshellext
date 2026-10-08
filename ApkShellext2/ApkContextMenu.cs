@@ -129,6 +129,14 @@ namespace ApkShellext2 {
                 mainMenu.DropDownItems.Add(dumpOtherMenu);
             }
 
+// The single-file details command is available for every supported package type.
+            var detailsMenu = new ToolStripMenuItem {
+                Text = Resources.menuMoreDetails,
+                Enabled = singleSelected
+            };
+            detailsMenu.Click += (sender, args) => showDetails();
+            mainMenu.DropDownItems.Add(detailsMenu);
+
             mainMenu.DropDownItems.Add("-");
 
             if (hasapk) {
@@ -236,13 +244,6 @@ namespace ApkShellext2 {
             */
             #endregion
 
-            // The single-file details command is available for every supported package type.
-            var detailsMenu = new ToolStripMenuItem {
-                Text = Resources.menuMoreDetails,
-                Enabled = singleSelected
-            };
-            detailsMenu.Click += (sender, args) => showDetails();
-            mainMenu.DropDownItems.Add(detailsMenu);
 
             #region Preferences Menu
             var settingsMenu = new ToolStripMenuItem {

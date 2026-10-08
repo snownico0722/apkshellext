@@ -338,18 +338,30 @@ namespace ApkShellextIntegration {
                             Require(strip.Items.Count == 1, "Expected one extension root menu");
                             var root = strip.Items[0] as ToolStripMenuItem;
                             Require(root != null, "Context menu root must be a menu item");
-                            bool foundMore = false;
-                            foreach (ToolStripItem item in root.DropDownItems) {
+                            Type menuResources = shellAssembly.GetType(
+                                "ApkShellext2.Properties.Resources", true);
+                            string xmlText = (string)menuResources.GetProperty("menuDumpOthers",
+                                BindingFlags.Static | BindingFlags.NonPublic).GetValue(null, null);
+                            string detailsText = (string)menuResources.GetProperty("menuMoreDetails",
+                                BindingFlags.Static | BindingFlags.NonPublic).GetValue(null, null);
+                            int xmlIndex = -1, detailsIndex = -1, separatorIndex = -1;
+                            for (int i = 0; i < root.DropDownItems.Count; i++) {
+                                ToolStripItem item = root.DropDownItems[i];
+                                if (item is ToolStripSeparator && separatorIndex < 0)
+                                    separatorIndex = i;
                                 var command = item as ToolStripMenuItem;
                                 if (command == null) continue;
                                 Require(command.DropDownItems.Count == 0,
                                     "Context menu has an unexpected nested submenu: " + command.Text);
-                                if (command.Text == "More details..." || command.Text == "更多...") {
+                                if (command.Text == xmlText) xmlIndex = i;
+                                if (command.Text == detailsText) {
                                     Require(command.Enabled, "Single-file details action should be enabled");
-                                    foundMore = true;
+                                    detailsIndex = i;
                                 }
                             }
-                            Require(foundMore, "Missing single-file details command");
+                            Require(xmlIndex >= 0 && detailsIndex == xmlIndex + 1 &&
+                                detailsIndex < separatorIndex,
+                                "Details must appear immediately below Extract XML in the first menu group");
                         }
                     } finally {
                         if (dataPointer != IntPtr.Zero) Marshal.Release(dataPointer);
@@ -373,12 +385,22 @@ namespace ApkShellextIntegration {
                         Require(Thread.CurrentThread.CurrentUICulture.Name == "zh-CN" &&
                             (string)menuLabel.GetValue(null, null) == "APK文件助手",
                             "The installed COM extension did not use embedded Chinese UI");
+                        PropertyInfo chineseDetailLabel = resourceType.GetProperty("menuMoreDetails",
+                            BindingFlags.Static | BindingFlags.NonPublic);
+                        Require(chineseDetailLabel != null &&
+                            (string)chineseDetailLabel.GetValue(null, null) == "查看更多信息",
+                            "The Chinese details action label is incorrect");
 
                         key.SetValue("Language", "en-US");
                         localize.Invoke(null, null);
                         Require(Thread.CurrentThread.CurrentUICulture.Name == "en-US" &&
                             (string)menuLabel.GetValue(null, null) == "APK Shell Extension",
                             "The installed COM extension could not return to English UI");
+                        PropertyInfo detailLabel = resourceType.GetProperty("menuMoreDetails",
+                            BindingFlags.Static | BindingFlags.NonPublic);
+                        Require(detailLabel != null &&
+                            (string)detailLabel.GetValue(null, null) == "View more information",
+                            "The details action has an unexpected English label");
                     } finally {
                         RestoreValue(key, "Language", savedLanguage);
                         Thread.CurrentThread.CurrentCulture = originalCulture;
@@ -416,14 +438,13 @@ namespace ApkShellextIntegration {
                         Require(ContainsScrollingPanel(preferences),
                             "Unified settings page must scroll");
 
-                        // The real Load event enables persistence; constructor alone must
-                        // not touch the stored values.
-                        preferencesType.GetMethod("Preferences_Load",
-                            BindingFlags.NonPublic | BindingFlags.Instance).Invoke(
-                                preferences, new object[] { preferences, EventArgs.Empty });
+                        // Controls must already be populated before the form first becomes visible.
                         FieldInfo field = preferencesType.GetField("txtRenamePattern",
                             BindingFlags.NonPublic | BindingFlags.Instance);
                         TextBox textbox = (TextBox)field.GetValue(preferences);
+                        Require(textbox.Text == "%AppName%" &&
+                            (string)key.GetValue("RenamePattern", "") == "%AppName%",
+                            "Settings were not initialized before the dialog was shown");
                         textbox.Text = "custom";
                         Require((string)key.GetValue("RenamePattern", "") == "custom",
                             "Rename pattern did not auto-save");

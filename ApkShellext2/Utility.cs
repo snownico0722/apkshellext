@@ -136,6 +136,33 @@ namespace ApkShellext2 {
                 Settings.Default.Save();
             }
         }
+
+        // Used by the settings dialog to load its controls with one registry read.
+        internal static Dictionary<string, string> GetSettingsSnapshot(
+            IDictionary<string, string> defaults) {
+            var values = new Dictionary<string, string>(defaults);
+            if (!UseRegisteryForSettings) {
+                foreach (var item in defaults)
+                    values[item.Key] = GetSetting(item.Key, item.Value);
+                return values;
+            }
+
+            try {
+                using (RegistryKey key = Registry.CurrentUser.OpenSubKey(
+                    @"SOFTWARE\" + Assembly.GetExecutingAssembly().GetName().Name)) {
+                    if (key != null) {
+                        foreach (var item in defaults) {
+                            object stored = key.GetValue(item.Key);
+                            if (stored != null)
+                                values[item.Key] = stored.ToString();
+                        }
+                    }
+                }
+            } catch (Exception ex) {
+                Logging.Log("Error happens during reading settings :" + ex.Message);
+            }
+            return values;
+        }
 #pragma warning restore CS0162 // Unreachable code detected
         #endregion
 

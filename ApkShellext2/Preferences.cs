@@ -1,5 +1,5 @@
 using System;
-using System.Configuration;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
@@ -17,15 +17,38 @@ namespace ApkShellext2 {
 
         public Preferences() {
             InitializeComponent();
+            // Build the populated page before ShowDialog creates a visible form.
+            SuspendLayoutTree(this);
+            try {
+                InitializeSettings();
+            } finally {
+                ResumeLayoutTree(this);
+            }
+            DoubleBuffered = true;
         }
 
-        private void Preferences_Load(object sender, EventArgs e) {
-            if (formLoaded)
-                return;
-
+        private void InitializeSettings() {
             Utility.Localize();
-            Log("Using setting file from: " +
-                ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.PerUserRoamingAndLocal).FilePath);
+            var settings = Utility.GetSettingsSnapshot(new Dictionary<string, string> {
+                { "ShowOverLayIcon", "False" },
+                { "ShowIpaIcon", "True" },
+                { "ShowAppxIcon", "False" },
+                { "StretchThumbnail", "True" },
+                { "EnableThumbnail", "True" },
+                { "SupportAdaptiveIcon", "False" },
+                { "ShowAppStoreWhenMultiSelected", "True" },
+                { "ShowMenuIcon", "True" },
+                { "ShowNewVersion", "True" },
+                { "ShowGooglePlay", "True" },
+                { "ShowAmazonStore", "True" },
+                { "ShowAppleStore", "True" },
+                { "ShowMSStore", "True" },
+                { "ShowApkMirror", "False" },
+                { "RenamePattern", NonLocalizeResources.strRenamePatternDefault },
+                { "ReplaceSpace", "False" },
+                { "ReplaceSpaceChar", "_" },
+                { "ToolTipPattern", NonLocalizeResources.strInfoTipDefault }
+            });
 
             CultureInfo[] languages = Utility.getSupportedLanguages();
             int selectedLanguage = 0;
@@ -37,27 +60,27 @@ namespace ApkShellext2 {
             if (combLanguage.Items.Count > 0)
                 combLanguage.SelectedIndex = selectedLanguage;
 
-            ckShowOverlay.Checked = Utility.GetSetting("ShowOverLayIcon", "False") == "True";
-            ckShowIPA.Checked = Utility.GetSetting("ShowIpaIcon", "True") == "True";
-            ckShowAppxIcon.Checked = Utility.GetSetting("ShowAppxIcon", "False") == "True";
-            ckStretchThumbnail.Checked = Utility.GetSetting("StretchThumbnail", "True") == "True";
-            ckEnableThumbnail.Checked = Utility.GetSetting("EnableThumbnail", "True") == "True";
-            ckAdaptiveIconSupport.Checked = Utility.GetSetting("SupportAdaptiveIcon", "False") == "True";
+            ckShowOverlay.Checked = settings["ShowOverLayIcon"] == "True";
+            ckShowIPA.Checked = settings["ShowIpaIcon"] == "True";
+            ckShowAppxIcon.Checked = settings["ShowAppxIcon"] == "True";
+            ckStretchThumbnail.Checked = settings["StretchThumbnail"] == "True";
+            ckEnableThumbnail.Checked = settings["EnableThumbnail"] == "True";
+            ckAdaptiveIconSupport.Checked = settings["SupportAdaptiveIcon"] == "True";
 
-            ckAlwaysShowStore.Checked = Utility.GetSetting("ShowAppStoreWhenMultiSelected", "True") == "True";
-            ckShowMenuIcon.Checked = Utility.GetSetting("ShowMenuIcon", "True") == "True";
-            ckShowNewVersionInfo.Checked = Utility.GetSetting("ShowNewVersion", "True") == "True";
-            ckShowGoogle.Checked = Utility.GetSetting("ShowGooglePlay", "True") == "True";
-            ckShowAmazon.Checked = Utility.GetSetting("ShowAmazonStore", "True") == "True";
-            ckShowApple.Checked = Utility.GetSetting("ShowAppleStore", "True") == "True";
-            ckShowMS.Checked = Utility.GetSetting("ShowMSStore", "True") == "True";
-            ckShowAM.Checked = Utility.GetSetting("ShowApkMirror", "False") == "True";
+            ckAlwaysShowStore.Checked = settings["ShowAppStoreWhenMultiSelected"] == "True";
+            ckShowMenuIcon.Checked = settings["ShowMenuIcon"] == "True";
+            ckShowNewVersionInfo.Checked = settings["ShowNewVersion"] == "True";
+            ckShowGoogle.Checked = settings["ShowGooglePlay"] == "True";
+            ckShowAmazon.Checked = settings["ShowAmazonStore"] == "True";
+            ckShowApple.Checked = settings["ShowAppleStore"] == "True";
+            ckShowMS.Checked = settings["ShowMSStore"] == "True";
+            ckShowAM.Checked = settings["ShowApkMirror"] == "True";
 
-            txtRenamePattern.Text = Utility.GetSetting("RenamePattern", NonLocalizeResources.strRenamePatternDefault);
-            ckReplaceSpace.Checked = Utility.GetSetting("ReplaceSpace", "False") == "True";
-            txtReplaceWhiteSpace.Text = Utility.GetSetting("ReplaceSpaceChar", "_");
+            txtRenamePattern.Text = settings["RenamePattern"];
+            ckReplaceSpace.Checked = settings["ReplaceSpace"] == "True";
+            txtReplaceWhiteSpace.Text = settings["ReplaceSpaceChar"];
             txtReplaceWhiteSpace.Enabled = ckReplaceSpace.Checked;
-            txtToolTipPattern.Text = Utility.GetSetting("ToolTipPattern", NonLocalizeResources.strInfoTipDefault);
+            txtToolTipPattern.Text = settings["ToolTipPattern"];
 
             btnUpdate.Image = Utility.ResizeBitmap(
                 Utility.NewVersionAvailible() ? NonLocalizeResources.iconUpdate : NonLocalizeResources.iconGitHub, 16);
@@ -69,52 +92,70 @@ namespace ApkShellext2 {
 
         // Changing the language updates labels without resetting the current field values.
         private void RefreshLocalizedText() {
-            Text = Resources.strPreferencesCaption;
-            grpGeneral.Text = Resources.twGeneral;
-            grpIcon.Text = Resources.twIcon;
-            grpContextMenu.Text = Resources.twContextMenu;
-            grpRenaming.Text = Resources.twRename;
-            grpInfoTip.Text = Resources.twInfotip;
+            SuspendLayoutTree(this);
+            try {
+                Text = Resources.strPreferencesCaption;
+                grpGeneral.Text = Resources.twGeneral;
+                grpIcon.Text = Resources.twIcon;
+                grpContextMenu.Text = Resources.twContextMenu;
+                grpRenaming.Text = Resources.twRename;
+                grpInfoTip.Text = Resources.twInfotip;
 
-            lblLanguage.Text = Resources.strLanguages;
-            lblCurrentVersion.Text = string.Format(Resources.strCurrVersion, Assembly.GetExecutingAssembly().GetName().Version);
-            if (Utility.NewVersionAvailible()) {
-                lblNewVer.Text = string.Format(Resources.strNewVersionAvailible, Utility.GetSetting("LatestVersion"));
-                btnUpdate.Text = Resources.btnUpdate;
-                toolTip1.SetToolTip(btnUpdate, Resources.btnUpdateToolTip);
-            } else {
-                lblNewVer.Text = Resources.strGotLatest;
-                btnUpdate.Text = Resources.btnGitHub;
-                toolTip1.SetToolTip(btnUpdate, Resources.strGotoProjectSite);
+                lblLanguage.Text = Resources.strLanguages;
+                lblCurrentVersion.Text = string.Format(Resources.strCurrVersion, Assembly.GetExecutingAssembly().GetName().Version);
+                if (Utility.NewVersionAvailible()) {
+                    lblNewVer.Text = string.Format(Resources.strNewVersionAvailible, Utility.GetSetting("LatestVersion"));
+                    btnUpdate.Text = Resources.btnUpdate;
+                    toolTip1.SetToolTip(btnUpdate, Resources.btnUpdateToolTip);
+                } else {
+                    lblNewVer.Text = Resources.strGotLatest;
+                    btnUpdate.Text = Resources.btnGitHub;
+                    toolTip1.SetToolTip(btnUpdate, Resources.strGotoProjectSite);
+                }
+
+                ckShowOverlay.Text = Resources.strShowOverlayIcon;
+                toolTip1.SetToolTip(ckShowOverlay, Resources.strShowOverlayIconToolTip);
+                ckShowIPA.Text = Resources.strShowIpaIcon;
+                ckShowAppxIcon.Text = Resources.strShowAppxIcon;
+                ckStretchThumbnail.Text = Resources.strStretchThumbnail;
+                ckEnableThumbnail.Text = Resources.strEnableThumbnail;
+                ckAdaptiveIconSupport.Text = Resources.strSupportAdaptiveIcon;
+                btnClearCache.Text = Resources.strClearCache;
+
+                ckAlwaysShowStore.Text = Resources.strAlwaysShowGooglePlay;
+                toolTip1.SetToolTip(ckAlwaysShowStore, Resources.strAlwaysShowGooglePlayToolTip);
+                ckShowMenuIcon.Text = Resources.strShowContextMenuIcon;
+                ckShowNewVersionInfo.Text = Resources.strShowNewVerInfo;
+                ckShowGoogle.Text = Resources.strShowGooglePlay;
+                ckShowAmazon.Text = Resources.strShowAmazonStore;
+                ckShowApple.Text = Resources.strShowAppleStore;
+                ckShowMS.Text = Resources.strShowMSStore;
+                ckShowAM.Text = Resources.strShowApkMirror;
+
+                lblRenamePattern.Text = Resources.strRenamePattern;
+                ckReplaceSpace.Text = Resources.strReplaceSpaceWith_;
+                lblInfoTipPattern.Text = Resources.strInfoTipPattern;
+                lblPatternVariablesHint.Text = Resources.strPatternVariablesHint;
+                lblInfoTipVariablesHint.Text = Resources.strPatternVariablesHint;
+                btnResetRenamePattern.Text = Resources.btnResetPattern;
+                btnResetInfoTipPattern.Text = Resources.btnResetPattern;
+                btnOK.Text = Resources.btnOK;
+            } finally {
+                ResumeLayoutTree(this);
             }
+        }
 
-            ckShowOverlay.Text = Resources.strShowOverlayIcon;
-            toolTip1.SetToolTip(ckShowOverlay, Resources.strShowOverlayIconToolTip);
-            ckShowIPA.Text = Resources.strShowIpaIcon;
-            ckShowAppxIcon.Text = Resources.strShowAppxIcon;
-            ckStretchThumbnail.Text = Resources.strStretchThumbnail;
-            ckEnableThumbnail.Text = Resources.strEnableThumbnail;
-            ckAdaptiveIconSupport.Text = Resources.strSupportAdaptiveIcon;
-            btnClearCache.Text = Resources.strClearCache;
+        // Suspend nested auto-sizing table layouts while localized text changes.
+        private static void SuspendLayoutTree(Control control) {
+            control.SuspendLayout();
+            foreach (Control child in control.Controls)
+                SuspendLayoutTree(child);
+        }
 
-            ckAlwaysShowStore.Text = Resources.strAlwaysShowGooglePlay;
-            toolTip1.SetToolTip(ckAlwaysShowStore, Resources.strAlwaysShowGooglePlayToolTip);
-            ckShowMenuIcon.Text = Resources.strShowContextMenuIcon;
-            ckShowNewVersionInfo.Text = Resources.strShowNewVerInfo;
-            ckShowGoogle.Text = Resources.strShowGooglePlay;
-            ckShowAmazon.Text = Resources.strShowAmazonStore;
-            ckShowApple.Text = Resources.strShowAppleStore;
-            ckShowMS.Text = Resources.strShowMSStore;
-            ckShowAM.Text = Resources.strShowApkMirror;
-
-            lblRenamePattern.Text = Resources.strRenamePattern;
-            ckReplaceSpace.Text = Resources.strReplaceSpaceWith_;
-            lblInfoTipPattern.Text = Resources.strInfoTipPattern;
-            lblPatternVariablesHint.Text = Resources.strPatternVariablesHint;
-            lblInfoTipVariablesHint.Text = Resources.strPatternVariablesHint;
-            btnResetRenamePattern.Text = Resources.btnResetPattern;
-            btnResetInfoTipPattern.Text = Resources.btnResetPattern;
-            btnOK.Text = Resources.btnOK;
+        private static void ResumeLayoutTree(Control control) {
+            foreach (Control child in control.Controls)
+                ResumeLayoutTree(child);
+            control.ResumeLayout(true);
         }
 
         private void combLanguage_SelectedIndexChanged(object sender, EventArgs e) {
@@ -258,8 +299,5 @@ namespace ApkShellext2 {
             }
         }
 
-        private void Log(string message) {
-            Utility.Log(this, "", message);
-        }
     }
 }
