@@ -11,6 +11,14 @@ if (-not (Test-Path (Join-Path $BuildDirectory 'ApkShellext2.dll'))) {
 }
 New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
 
+# Remove only obsolete Simplified-Chinese archive artifacts left by an older
+# local packaging run. This locale is now included in the primary DLL.
+foreach ($extension in @('.7z', '.zip')) {
+    $obsolete = Join-Path $OutputDirectory ("zh-CN" + $extension)
+    if (Test-Path -LiteralPath $obsolete)
+        Remove-Item -LiteralPath $obsolete -Force
+}
+
 # Simplified Chinese belongs to the main assembly, never a zh-CN satellite.
 # Catch accidental Visual Studio designer / MSBuild metadata regressions.
 $chineseSatellite = Join-Path $BuildDirectory 'zh-CN\ApkShellext2.resources.dll'
