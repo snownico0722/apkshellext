@@ -330,9 +330,13 @@ namespace ApkShellext2
 #else
             #region Use SVG lib
             try {
-                Svg.Pathing.SvgPathSegmentList l = SvgPathBuilder.Parse(pathdata.AsSpan());
-                foreach (Svg.Pathing.SvgPathSegment s in l) {
-                    s.AddToPath(path);
+                Svg.Pathing.SvgPathSegmentList segments = SvgPathBuilder.Parse(pathdata.AsSpan());
+                PointF current = PointF.Empty;
+                foreach (Svg.Pathing.SvgPathSegment segment in segments) {
+                    // Svg 3.x requires the preceding endpoint and segment list;
+                    // the obsolete overload uses an uninitialized Start for each
+                    // segment and can produce empty or incorrect filled shapes.
+                    current = segment.AddToPath(path, current, segments);
                 }
             } catch (Exception e){
                 Utility.Log(null, "VectorDrawable, d=" + pathdata, e.Message);
