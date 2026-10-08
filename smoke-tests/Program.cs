@@ -20,6 +20,8 @@ namespace ApkShellextSmokeTests {
                 CheckInvalidBinaryManifestTerminates(Path.Combine(dir, "bad-manifest.apk"));
                 CheckFirstEntryUppercasePng(Path.Combine(dir, "first-entry.apk"));
                 CheckVectorPathRendering();
+                CheckNestedVectorGroups(Path.Combine(dir, "valid.apk"));
+                CheckUpdateVersionParsing();
                 CheckCallerStreamIsNotClosed();
                 CheckNestedAndroidPackages(dir);
                 CheckMalformedLegacyPackages(dir);
@@ -195,6 +197,60 @@ namespace ApkShellextSmokeTests {
             using (GraphicsPath path = VectorDrawableRender.Convert2Path("M0,0 L8,8 L8,0 Z")) {
                 if (path == null || path.PointCount < 3)
                     throw new Exception("SVG vector path was not rendered after the Svg upgrade");
+            }
+        }
+
+        private static void CheckNestedVectorGroups(string apk) {
+            var doc = new System.Xml.XmlDocument();
+            doc.LoadXml("<vector viewportWidth='32' viewportHeight='16'>" +
+                "<group><path pathData='M0,0 L8,0 L8,8 L0,8 Z' fillColor='#FFFF0000'/></group>" +
+                "<group translateX='16'><group>" +
+                "<path pathData='M0,0 L8,0 L8,8 L0,8 Z' fillColor='#FF00FF00'/>" +
+                "</group></group></vector>");
+            using (var reader = new ApkReader(apk)) {
+                MethodInfo render = typeof(ApkReader).GetMethod("parseVectorDrawable",
+                    BindingFlags.NonPublic | BindingFlags.Instance);
+                using (Bitmap bitmap = (Bitmap)render.Invoke(reader,
+                    new object[] { doc, new Size(32, 16) })) {
+                    Color left = bitmap.GetPixel(4, 4);
+                    Color right = bitmap.GetPixel(20, 4);
+                    if (left.R < 200 || left.G > 70 || right.G < 200 || right.R > 70)
+                        throw new Exception("Nested VectorDrawable groups or transforms were ignored");
+                }
+            }
+        }
+
+        private static void CheckUpdateVersionParsing() {
+            MethodInfo parse = typeof(Utility).GetMethod("TryParseLatestVersion",
+                BindingFlags.NonPublic | BindingFlags.Static);
+            object[] args = { "{\"tag_name\":\"v0.4.1\"}", null };
+            if (!(bool)parse.Invoke(null, args) ||
+                !((Version)args[1]).Equals(new Version(0, 4, 1, 0)))
+                throw new Exception("GitHub release JSON version parsing failed");
+
+            args = new object[] { "corrupted.version", null };
+            if ((bool)parse.Invoke(null, args))
+                throw new Exception("Malformed release version was accepted");
+            string previous = Utility.GetSetting("LatestVersion", "");
+            string previousCheck = Utility.GetSetting("LastCheckUpdateTime", "");
+            try {
+                Utility.SaveSetting("LatestVersion", "corrupted.version");
+                if (Utility.NewVersionAvailible())
+                    throw new Exception("Invalid cached version caused a false update signal");
+
+                Utility.SaveSetting("LatestVersion", "0.4.1.0");
+                if (!Utility.NewVersionAvailible())
+                    throw new Exception("Valid newer release was not detected");
+
+                Utility.SaveSetting("LastCheckUpdateTime", "invalid-date");
+                Utility.CheckUpdate();
+                DateTime parsed;
+                if (!DateTime.TryParse(Utility.GetSetting("LastCheckUpdateTime", ""),
+                    out parsed) || parsed.Date != DateTime.Today)
+                    throw new Exception("First-run update check was not scheduled");
+            } finally {
+                Utility.SaveSetting("LatestVersion", previous);
+                Utility.SaveSetting("LastCheckUpdateTime", previousCheck);
             }
         }
 
