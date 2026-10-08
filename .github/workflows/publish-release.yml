@@ -1,0 +1,51 @@
+name: Publish APKShellExt release
+
+on:
+  push:
+    branches:
+      - 'publish/v*'
+    paths:
+      - '.github/release-trigger.txt'
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: windows-2022
+    steps:
+      - name: Checkout exact release commit with submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Configure MSBuild
+        uses: microsoft/setup-msbuild@v2
+      - name: Build application
+        shell: pwsh
+        run: msbuild ApkShellext2.sln /m /p:Configuration=Release /p:Platform="Any CPU" /verbosity:minimal
+      - name: Build smoke tests
+        shell: pwsh
+        run: msbuild smoke-tests/ApkReaderSmokeTests.csproj /m /p:Configuration=Release /verbosity:minimal
+      - name: Run smoke tests
+        shell: pwsh
+        run: '& "./smoke-tests/bin/Release/ApkReaderSmokeTests.exe"'
+      - name: Build updated WebP for both Windows architectures
+        shell: pwsh
+        run: ./scripts/build-libwebp.ps1
+      - name: Verify and package release payload
+        shell: pwsh
+        run: ./scripts/package-release.ps1
+      - name: Publish versioned GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = $env:GITHUB_REF_NAME.Substring('publish/'.Length)
+          $requested = (Get-Content '.github/release-trigger.txt' -Raw).Trim()
+          if ($tag -notmatch '^v[0-9]+\.[0-9]+\.[0-9]+$' -or $tag -ne $requested) {
+            throw "Release ref / trigger mismatch: $tag / $requested"
+          }
+          $assets = @(Get-ChildItem -Path 'dist' -File | ForEach-Object FullName)
+          if ($assets.Count -eq 0) { throw 'There are no release archives.' }
+          & gh release create $tag @assets --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "ApkShellExt $tag" --notes-file 'RELEASE_NOTES_v0.3.0.md' --latest
+          if ($LASTEXITCODE -ne 0) { throw "GitHub Release creation failed: $tag" }
