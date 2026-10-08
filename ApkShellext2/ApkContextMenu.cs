@@ -70,11 +70,11 @@ namespace ApkShellext2 {
                     p.EndsWith(AppPackageReader.extAPKS, StringComparison.OrdinalIgnoreCase) ||
                     p.EndsWith(AppPackageReader.extAPKM, StringComparison.OrdinalIgnoreCase))
                     hasapk = true;
-                if (p.EndsWith(AppPackageReader.extIPA))
+                if (p.EndsWith(AppPackageReader.extIPA, StringComparison.OrdinalIgnoreCase))
                     hasipa = true;
-                if (p.EndsWith(AppPackageReader.extAPPX))
+                if (p.EndsWith(AppPackageReader.extAPPX, StringComparison.OrdinalIgnoreCase))
                     hasappx = true;
-                if (p.EndsWith(AppPackageReader.extAPPXBUNDLE))
+                if (p.EndsWith(AppPackageReader.extAPPXBUNDLE, StringComparison.OrdinalIgnoreCase))
                     hasappxbundle = true;
             };
 
@@ -323,8 +323,9 @@ namespace ApkShellext2 {
                 }
 
                 newFileName = Regex.Replace(newFileName, @"[\/:*?""<>|-]+", ""); // remove invalid chars
-                if (Utility.GetSetting("ReplaceSpace")=="True") {
-                    newFileName = Regex.Replace(newFileName, @"\s+", "_");
+                if (Utility.GetSetting("ReplaceSpace") == "True") {
+                    string replacement = Utility.GetSetting("ReplaceSpaceChar", "_");
+                    newFileName = Regex.Replace(newFileName, @"\s+", match => replacement);
                 }
                 string oldFileName = Path.GetFileName(path);
                 string folderPath = Path.GetDirectoryName(path);
@@ -351,8 +352,8 @@ namespace ApkShellext2 {
         }
 
         private void dumpXML(string apk, string xml) {
-            using (ApkReader reader = (ApkReader)AppPackageReader.Read(apk)) {
-                try {
+            try {
+                using (ApkReader reader = (ApkReader)AppPackageReader.Read(apk)) {
                     XmlDocument doc = reader.ExtractCompressedXml(xml);
                     string filepath = apk + "." + Regex.Replace(xml, @"[\/:*?""<>|-]+", "_"); // remove invalid chars
                     XmlWriterSettings setting = new XmlWriterSettings();
@@ -360,9 +361,9 @@ namespace ApkShellext2 {
                     XmlWriter writer = XmlWriter.Create(filepath,setting);
                     doc.WriteTo(writer);
                     writer.Close();
-                } catch (Exception ex) {
-                    Log(ex.Message + "\nError happens during extracting " + xml + " in " + apk);
                 }
+            } catch (Exception ex) {
+                Log(ex.Message + "\nError happens during extracting " + xml + " in " + apk);
             }
         }
 
@@ -467,7 +468,7 @@ namespace ApkShellext2 {
 
         private void gotoAppleStore() {
             foreach (var p in SelectedItemPaths) {
-                if (p.EndsWith(AppPackageReader.extIPA)) {
+                if (p.EndsWith(AppPackageReader.extIPA, StringComparison.OrdinalIgnoreCase)) {
                     using (IpaReader reader = AppPackageReader.Read(p) as IpaReader) {
                         try {
                             Process.Start(string.Format(Properties.NonLocalizeResources.urlAppleStore, reader.AppID));
@@ -481,7 +482,7 @@ namespace ApkShellext2 {
 
         private void gotoMicrosoftStore() {
             foreach (var p in SelectedItemPaths) {
-                if (p.EndsWith(AppPackageReader.extAPPX) || p.EndsWith(AppPackageReader.extAPPXBUNDLE)) {
+                if (p.EndsWith(AppPackageReader.extAPPX, StringComparison.OrdinalIgnoreCase) || p.EndsWith(AppPackageReader.extAPPXBUNDLE, StringComparison.OrdinalIgnoreCase)) {
                     using (AppPackageReader reader = AppPackageReader.Read(p)) {
                         string package = reader.PackageName;
                         CultureInfo ci = System.Threading.Thread.CurrentThread.CurrentCulture;
