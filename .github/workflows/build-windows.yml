@@ -1,0 +1,39 @@
+name: Windows build
+
+on:
+  push:
+    branches: [ApkShellext2]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-2022
+    steps:
+      - name: Checkout with the original dependencies
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Configure MSBuild
+        uses: microsoft/setup-msbuild@v2
+      - name: Build shell extension and original test app
+        shell: pwsh
+        run: msbuild ApkShellext2.sln /m /p:Configuration=Release /p:Platform="Any CPU" /verbosity:minimal
+      - name: Build original optional service
+        shell: pwsh
+        run: msbuild ApkShellextService/apkShellextService.csproj /m /p:Configuration=Release /verbosity:minimal
+      - name: Verify produced shell extension
+        shell: pwsh
+        run: |
+          if (!(Test-Path "ApkShellext2/bin/Release/ApkShellext2.dll")) {
+            throw "Expected shell extension assembly was not produced"
+          }
+          if (!(Test-Path "ApkShellext2/bin/Release/install.bat")) {
+            throw "Original installation script was not copied"
+          }
+      - name: Keep build output for manual Explorer smoke tests
+        uses: actions/upload-artifact@v4
+        with:
+          name: apkshellext2-windows-release
+          path: ApkShellext2/bin/Release/
+          if-no-files-found: error
