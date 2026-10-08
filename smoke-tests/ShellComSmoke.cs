@@ -145,15 +145,18 @@ namespace ApkShellextIntegration {
             IntPtr large = IntPtr.Zero, small = IntPtr.Zero;
             try {
                 ((IPersistFile)instance).Load(path, 0);
-                var icon = Native.AsInterface<IExtractIconW>(instance);
-                int index;
-                uint flags;
-                Native.Check(icon.GetIconLocation(0, new StringBuilder(260), 260,
-                    out index, out flags), "IExtractIconW.GetIconLocation");
+                object[] location = { 0u, new StringBuilder(260), 260, 0, 0u };
+                Native.Check(Native.Invoke<IExtractIconW>(instance, "GetIconLocation", location),
+                    "IExtractIconW.GetIconLocation");
+                int index = Convert.ToInt32(location[3]);
+                uint flags = Convert.ToUInt32(location[4]);
                 Require((flags & 0x0008) != 0, "Icon extraction should use an HICON, not a file index.");
 
-                int hr = icon.Extract("", (uint)index, out large, out small,
-                    (uint)(48 | (16 << 16)));
+                object[] extracted = { "", (uint)index, IntPtr.Zero, IntPtr.Zero,
+                    (uint)(48 | (16 << 16)) };
+                int hr = Native.Invoke<IExtractIconW>(instance, "Extract", extracted);
+                large = (IntPtr)extracted[2];
+                small = (IntPtr)extracted[3];
                 Native.Check(hr, "IExtractIconW.Extract");
                 Require(large != IntPtr.Zero && small != IntPtr.Zero,
                     "Shell handler failed to return both HICON sizes: " + Path.GetFileName(path));
@@ -188,15 +191,16 @@ namespace ApkShellextIntegration {
             object instance = Native.Create(Native.Tip);
             try {
                 ((IPersistFile)instance).Load(path, 0);
-                string text;
-                Native.Check(Native.AsInterface<IQueryInfo>(instance).GetInfoTip(0, out text),
+                object[] tip = { 0u, null };
+                Native.Check(Native.Invoke<IQueryInfo>(instance, "GetInfoTip", tip),
                     "IQueryInfo.GetInfoTip");
+                string text = tip[1] as string;
                 Require(!string.IsNullOrWhiteSpace(text),
                     "No tooltip text was returned: " + Path.GetFileName(path));
                 if (expectedName != null)
                     Require(text.Contains(expectedName), "Tooltip lost the APK app name: " + text);
-                int flags;
-                Native.Check(Native.AsInterface<IQueryInfo>(instance).GetInfoFlags(out flags),
+                object[] flags = { 0 };
+                Native.Check(Native.Invoke<IQueryInfo>(instance, "GetInfoFlags", flags),
                     "IQueryInfo.GetInfoFlags");
             } finally { Native.Release(instance); }
         }
@@ -208,10 +212,12 @@ namespace ApkShellextIntegration {
             object instance = Native.Create(Native.Thumbnail);
             IntPtr bitmapHandle = IntPtr.Zero;
             try {
-                Native.Check(Native.AsInterface<IInitializeWithStream>(instance).Initialize(input, 0),
-                    "IInitializeWithStream.Initialize");
-                int alpha;
-                int hr = Native.AsInterface<IThumbnailProvider>(instance).GetThumbnail(64, out bitmapHandle, out alpha);
+                Native.Check(Native.Invoke<IInitializeWithStream>(instance, "Initialize",
+                    new object[] { input, 0u }), "IInitializeWithStream.Initialize");
+                object[] thumb = { 64u, IntPtr.Zero, 0 };
+                int hr = Native.Invoke<IThumbnailProvider>(instance, "GetThumbnail", thumb);
+                bitmapHandle = (IntPtr)thumb[1];
+                int alpha = Convert.ToInt32(thumb[2]);
                 if (shouldExist) {
                     Native.Check(hr, "IThumbnailProvider.GetThumbnail");
                     Require(bitmapHandle != IntPtr.Zero, "Thumbnail handler returned no HBITMAP.");
@@ -242,12 +248,13 @@ namespace ApkShellextIntegration {
                 data.SetFileDropList(filePaths);
                 dataPointer = Marshal.GetComInterfaceForObject(data,
                     typeof(System.Runtime.InteropServices.ComTypes.IDataObject));
-                Native.AsInterface<IShellExtInit>(instance).Initialize(IntPtr.Zero, dataPointer, IntPtr.Zero);
+                Native.Invoke<IShellExtInit>(instance, "Initialize",
+                    new object[] { IntPtr.Zero, dataPointer, IntPtr.Zero });
 
                 nativeMenu = Native.CreatePopupMenu();
                 Require(nativeMenu != IntPtr.Zero, "CreatePopupMenu failed.");
-                int result = Native.AsInterface<IContextMenu>(instance).QueryContextMenu(nativeMenu,
-                    0, 1, 0x7FFF, 0);
+                int result = Native.Invoke<IContextMenu>(instance, "QueryContextMenu",
+                    new object[] { nativeMenu, 0u, 1, 0x7FFF, 0u });
                 Native.Check(result, "IContextMenu.QueryContextMenu");
                 Require(Native.GetMenuItemCount(nativeMenu) > 0,
                     "Shell handler did not insert any context-menu entries.");
