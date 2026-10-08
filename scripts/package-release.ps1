@@ -17,6 +17,16 @@ foreach ($name in $required) {
         throw "Missing release component: $name"
     }
 }
+# The original build copies legacy libwebp binaries. Refuse to package them
+# until the pinned 1.6.0 DLLs have been built for both architectures.
+& (Join-Path $PSScriptRoot 'verify-libwebp.ps1') -DllPath (Join-Path $BuildDirectory 'libwebp_x64.dll') -Architecture x64
+$winPs32 = Join-Path $env:WINDIR 'SysWOW64\WindowsPowerShell\v1.0\powershell.exe'
+if (-not (Test-Path $winPs32)) {
+    throw '32-bit Windows PowerShell is needed to validate the x86 libwebp DLL.'
+}
+& $winPs32 -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'verify-libwebp.ps1') -DllPath (Join-Path $BuildDirectory 'libwebp_x86.dll') -Architecture x86
+if ($LASTEXITCODE -ne 0) { throw 'The x86 libwebp DLL failed validation.' }
+
 $payload = @($required)
 $payload += @(Get-ChildItem -Path $BuildDirectory -Filter 'libwebp_*.dll' -File | ForEach-Object Name)
 
