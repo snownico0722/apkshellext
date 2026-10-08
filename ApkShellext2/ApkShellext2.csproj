@@ -287,6 +287,7 @@
     <Compile Include="SharpShell\SharpShell\SharpShell\Interop\Shlwapi.cs" />
     <Compile Include="SharpShell\SharpShell\SharpShell\Interop\SIZE.cs" />
     <Compile Include="SharpShell\SharpShell\SharpShell\Interop\STGM.cs" />
+    <Compile Include="SharpShell\SharpShell\SharpShell\Interop\STATFLAG.cs" />
     <Compile Include="SharpShell\SharpShell\SharpShell\Interop\STRRET.cs" />
     <Compile Include="SharpShell\SharpShell\SharpShell\Interop\SVUIA_STATUS.cs" />
     <Compile Include="SharpShell\SharpShell\SharpShell\Interop\TBBUTTON.cs" />
