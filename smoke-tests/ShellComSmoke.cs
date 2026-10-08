@@ -291,6 +291,7 @@ namespace ApkShellextIntegration {
                 string oldPattern = (string)key.GetValue("RenamePattern", null);
                 string oldReplace = (string)key.GetValue("ReplaceSpace", null);
                 string oldReplaceChar = (string)key.GetValue("ReplaceSpaceChar", null);
+                string oldInfoTip = (string)key.GetValue("ToolTipPattern", null);
                 try {
                     // Fresh installs must behave like the settings checkbox,
                     // which defaults to True, without the value ever being saved.
@@ -393,6 +394,10 @@ namespace ApkShellextIntegration {
                     foreach (var row in rows)
                         if (row.Value == ShellFixtures.PackageName) hasPackage = true;
                     Require(hasPackage, "Details did not include the Android package name");
+                    foreach (var row in rows) {
+                        Require(row.Key != "Publisher" && row.Key != "发布者",
+                            "Android package namespace must not be reported as a verified publisher");
+                    }
 
                     var brokenRows = (IEnumerable<KeyValuePair<string, string>>)readDetails.Invoke(
                         null, new object[] { ShellFixtures.PathFor(dir, "broken.apk") });
@@ -410,24 +415,72 @@ namespace ApkShellextIntegration {
                             "Settings still contains tree or wiki/translation navigation");
                         Require(ContainsScrollingPanel(preferences),
                             "Unified settings page must scroll");
+
+                        // The real Load event enables persistence; constructor alone must
+                        // not touch the stored values.
+                        preferencesType.GetMethod("Preferences_Load",
+                            BindingFlags.NonPublic | BindingFlags.Instance).Invoke(
+                                preferences, new object[] { preferences, EventArgs.Empty });
                         FieldInfo field = preferencesType.GetField("txtRenamePattern",
                             BindingFlags.NonPublic | BindingFlags.Instance);
                         TextBox textbox = (TextBox)field.GetValue(preferences);
                         textbox.Text = "custom";
+                        Require((string)key.GetValue("RenamePattern", "") == "custom",
+                            "Rename pattern did not auto-save");
                         preferencesType.GetMethod("btnResetRenamePattern_Click",
                             BindingFlags.NonPublic | BindingFlags.Instance).Invoke(
                                 preferences, new object[] { preferences, EventArgs.Empty });
-                        Require(textbox.Text == "%AppName%_%Version%",
-                            "Reset rename pattern did not restore its default");
+                        Require(textbox.Text == "%AppName%_%Version%" &&
+                            (string)key.GetValue("RenamePattern", "") == textbox.Text,
+                            "Reset rename pattern did not persist its default");
+
+                        var toolTip = (TextBox)preferencesType.GetField("txtToolTipPattern",
+                            BindingFlags.NonPublic | BindingFlags.Instance).GetValue(preferences);
+                        toolTip.Text = "Version: %Version%";
+                        Require((string)key.GetValue("ToolTipPattern", "") == toolTip.Text,
+                            "Info tip pattern did not auto-save");
+
+                        var replacement = (TextBox)preferencesType.GetField("txtReplaceWhiteSpace",
+                            BindingFlags.NonPublic | BindingFlags.Instance).GetValue(preferences);
+                        replacement.Text = "__";
+                        Require((string)key.GetValue("ReplaceSpaceChar", "") == "__",
+                            "Whitespace replacement did not auto-save");
                     }
+
+                    CheckInvalidIpaStoreCommand(dir);
                 } finally {
                     RestoreValue(key, "EnableThumbnail", oldThumbnail);
                     RestoreValue(key, "RenamePattern", oldPattern);
                     RestoreValue(key, "ReplaceSpace", oldReplace);
                     RestoreValue(key, "ReplaceSpaceChar", oldReplaceChar);
+                    RestoreValue(key, "ToolTipPattern", oldInfoTip);
                 }
             }
             Console.WriteLine("PASS: embedded Chinese/English COM UI, thumbnail defaults, rename settings and broken-APK menu command");
+        }
+
+        // Opening the store for a damaged IPA must not throw out of the Explorer
+        // context-menu callback. Previously the IpaReader constructor was outside try.
+        private static void CheckInvalidIpaStoreCommand(string dir) {
+            object menu = Native.Create(Native.Context);
+            IntPtr dataPointer = IntPtr.Zero;
+            try {
+                var data = new DataObject();
+                var paths = new StringCollection();
+                paths.Add(ShellFixtures.PathFor(dir, "invalid.ipa"));
+                data.SetFileDropList(paths);
+                dataPointer = Marshal.GetComInterfaceForObject(data,
+                    typeof(System.Runtime.InteropServices.ComTypes.IDataObject));
+                Native.Invoke<IShellExtInit>(menu, "Initialize",
+                    new object[] { IntPtr.Zero, dataPointer, IntPtr.Zero });
+                MethodInfo apple = menu.GetType().GetMethod("gotoAppleStore",
+                    BindingFlags.NonPublic | BindingFlags.Instance);
+                Require(apple != null, "Apple Store command no longer exists");
+                apple.Invoke(menu, null);
+            } finally {
+                if (dataPointer != IntPtr.Zero) Marshal.Release(dataPointer);
+                Native.Release(menu);
+            }
         }
 
         private static void RestoreValue(RegistryKey key, string name, string original) {
