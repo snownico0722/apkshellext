@@ -400,6 +400,6 @@ By checking this, rename app file as %AppName%_%Version%_%Revision%, otherwise, 
     <value>Failed to read package metadata</value>
   </data>
   <data name="strPatternVariablesHint" xml:space="preserve">
-    <value>Variables: %AppName%, %Package%, %Version%, %Revision%, %Publisher%, %FileSize%, %OS%, %LastModify%</value>
+    <value>Variables: %AppName%, %Package%, %Version%, %Revision%, %Publisher%, %FileSize%, %OS%, %LastModify%, %Debuggable%&#10;Android manifest: %Attr(manifest/application,label)% (tag path, attribute)</value>
   </data>
 </root>
