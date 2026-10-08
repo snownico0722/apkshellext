@@ -131,7 +131,6 @@
       <DesignTimeSharedInput>True</DesignTimeSharedInput>
       <DependentUpon>Settings.settings</DependentUpon>
     </Compile>
-    <Compile Include="QRCoder\QRCoder\QRCoder.cs" />
     <Compile Include="Properties\Settings.cs" />
     <Compile Include="SharpShell\SharpShell\SharpShell\Attributes\AssociationType.cs" />
     <Compile Include="SharpShell\SharpShell\SharpShell\Attributes\COMServerAssociationAttribute.cs" />
@@ -454,6 +453,7 @@
     <!-- Modern SharpZipLib is loaded as an assembly; no duplicate legacy ZIP sources. -->
     <PackageReference Include="SharpZipLib" Version="1.4.2" />
     <PackageReference Include="Svg" Version="3.4.8" />
+    <PackageReference Include="QRCoder" Version="1.8.0" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
