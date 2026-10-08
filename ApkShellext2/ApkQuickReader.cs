@@ -1123,6 +1123,9 @@ namespace ApkQuickReader
     public class ApkReader : AppPackageReader
     {
         private ZipFile zip;
+        private Stream inputStream;
+        private Stream zipInputStream;
+        private bool ownsInputStream;
         private byte[] resources;
         private byte[] manifest;
 
@@ -1150,23 +1153,87 @@ namespace ApkQuickReader
         /// <param name="culture"></param>
         public ApkReader(string filename, string culture = "") {
             FileName = filename;
-            openStream(new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.Read));
+            openStream(new FileStream(filename, FileMode.Open, FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete), true);
         }
 
         public ApkReader(Stream stream, string culture = "") {
             Log("Opening apk from stream");
-            openStream(stream);
+            openStream(stream, false);
         }
 
-        private void openStream(Stream stream) {
-            zip = new ZipFile(stream);
-            ZipEntry en = zip.GetEntry(AndroidManifestXML);
-            BinaryReader s = new BinaryReader(zip.GetInputStream(en));
-            manifest = s.ReadBytes((int)en.Size);
+        // Streams supplied by shell handlers remain owned by the caller.
+        private void openStream(Stream stream, bool ownsStream) {
+            inputStream = stream;
+            ownsInputStream = ownsStream;
+            try {
+                // The ZIP constructor can close a stream if parsing fails before
+                // IsStreamOwner can be changed. Wrap externally-owned streams.
+                zipInputStream = ownsStream ? stream : new BorrowedStream(stream);
+                zip = new ZipFile(zipInputStream);
+                zip.IsStreamOwner = false;
 
-            en = zip.GetEntry(Resources_arsc);
-            s = new BinaryReader(zip.GetInputStream(en));
-            resources = s.ReadBytes((int)en.Size);
+                ZipEntry entry = zip.GetEntry(AndroidManifestXML);
+                if (entry == null)
+                    throw new InvalidDataException("APK is missing AndroidManifest.xml");
+                using (Stream entryStream = zip.GetInputStream(entry))
+                using (BinaryReader reader = new BinaryReader(entryStream)) {
+                    manifest = reader.ReadBytes((int)entry.Size);
+                }
+
+                entry = zip.GetEntry(Resources_arsc);
+                if (entry == null)
+                    throw new InvalidDataException("APK is missing resources.arsc");
+                using (Stream entryStream = zip.GetInputStream(entry))
+                using (BinaryReader reader = new BinaryReader(entryStream)) {
+                    resources = reader.ReadBytes((int)entry.Size);
+                }
+            } catch {
+                CloseArchive();
+                throw;
+            }
+        }
+
+        private void CloseArchive() {
+            try {
+                if (zip != null)
+                    zip.Close();
+            } finally {
+                zip = null;
+                if (zipInputStream != null && !ReferenceEquals(zipInputStream, inputStream))
+                    zipInputStream.Dispose();
+                zipInputStream = null;
+                if (ownsInputStream && inputStream != null)
+                    inputStream.Dispose();
+                inputStream = null;
+            }
+        }
+
+        // ZipFile's constructor owns its argument until initialization succeeds.
+        // This wrapper prevents it from closing a Windows-owned COM stream.
+        private sealed class BorrowedStream : Stream {
+            private readonly Stream inner;
+            public BorrowedStream(Stream inner) { this.inner = inner; }
+            public override bool CanRead { get { return inner.CanRead; } }
+            public override bool CanSeek { get { return inner.CanSeek; } }
+            public override bool CanWrite { get { return inner.CanWrite; } }
+            public override long Length { get { return inner.Length; } }
+            public override long Position {
+                get { return inner.Position; }
+                set { inner.Position = value; }
+            }
+            public override void Flush() { inner.Flush(); }
+            public override int Read(byte[] buffer, int offset, int count) {
+                return inner.Read(buffer, offset, count);
+            }
+            public override long Seek(long offset, SeekOrigin origin) {
+                return inner.Seek(offset, origin);
+            }
+            public override void SetLength(long length) { inner.SetLength(length); }
+            public override void Write(byte[] buffer, int offset, int count) {
+                inner.Write(buffer, offset, count);
+            }
+            // Intentionally do not dispose inner: it belongs to the caller.
         }
 
         public override AppPackageReader.AppType Type {
@@ -1252,17 +1319,27 @@ namespace ApkQuickReader
         /// <returns>Bitmap or </returns>
         public Bitmap getImage(string path, Size size) {
             ZipEntry iconz;
-            if (zip.FindEntry(path, true) > 0) {
+            if (zip.FindEntry(path, true) >= 0) {
                 iconz = zip.GetEntry(path);
-                if (path.EndsWith(".png") || path.EndsWith(".jpg") || path.EndsWith(".jpeg") || 
-                    path.EndsWith(".gif") || path.EndsWith(".tif") || path.EndsWith(".tiff")) {
-                    return Utility.ResizeBitmap((Bitmap)Image.FromStream(zip.GetInputStream(iconz)),size);
-                } else if (path.EndsWith(".webp")) {
+                string ext = Path.GetExtension(path);
+                if (string.Equals(ext, ".png", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(ext, ".jpg", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(ext, ".jpeg", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(ext, ".gif", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(ext, ".tif", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(ext, ".tiff", StringComparison.OrdinalIgnoreCase)) {
+                    using (Stream imageStream = zip.GetInputStream(iconz))
+                    using (Image decoded = Image.FromStream(imageStream)) {
+                        return Utility.ResizeBitmap((Bitmap)decoded, size);
+                    }
+                } else if (string.Equals(ext, ".webp", StringComparison.OrdinalIgnoreCase)) {
                     WebP webp = new WebP();
-                    byte[] bytes = new BinaryReader(zip.GetInputStream(iconz)).ReadBytes((int)iconz.Size);
-                    //webp.Decode(bytes).Save(FileName+".webp");
-                    return Utility.ResizeBitmap(webp.Decode(bytes),size);
-                } else if (path.EndsWith(".xml")) {
+                    using (Stream imageStream = zip.GetInputStream(iconz))
+                    using (BinaryReader reader = new BinaryReader(imageStream))
+                    using (Bitmap decoded = webp.Decode(reader.ReadBytes((int)iconz.Size))) {
+                        return Utility.ResizeBitmap(decoded, size);
+                    }
+                } else if (string.Equals(ext, ".xml", StringComparison.OrdinalIgnoreCase)) {
                     XmlDocument doc = ExtractCompressedXml(path);
                     if (doc.FirstChild.Name == "adaptive-icon") {
                         return parseAdaptiveIcon(doc, size);
@@ -1975,19 +2052,14 @@ namespace ApkQuickReader
             if (disposing) {
                 resources = null;
                 manifest = null;
-                if (zip != null)
-                    zip.Close();
+                CloseArchive();
             }
             disposed = true;
             base.Dispose(disposing);
         }
 
         public void Close() {
-            Dispose(true);
-        }
-
-        ~ApkReader() {
-            Dispose(true);
+            Dispose();
         }
         #endregion
     }

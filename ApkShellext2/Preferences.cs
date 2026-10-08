@@ -254,15 +254,15 @@ namespace ApkShellext2 {
         }
 
         private void ckShowApple_CheckedChanged(object sender, EventArgs e) {
-            Utility.SaveSetting("ShowAppleStore",ckShowGoogle.Checked);
+            Utility.SaveSetting("ShowAppleStore",ckShowApple.Checked);
         }
 
         private void ckShowMS_CheckedChanged(object sender, EventArgs e) {
-            Utility.SaveSetting("ShowMSStore", ckShowGoogle.Checked);
+            Utility.SaveSetting("ShowMSStore", ckShowMS.Checked);
         }
 
         private void ckShowAM_CheckedChanged(object sender, EventArgs e) {
-            Utility.SaveSetting("ShowApkMirror", ckShowGoogle.Checked);
+            Utility.SaveSetting("ShowApkMirror", ckShowAM.Checked);
         }
 
         private bool RenamePatternIsDirty = false;
