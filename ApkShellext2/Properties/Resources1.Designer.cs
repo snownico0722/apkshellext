@@ -39,7 +39,10 @@ namespace ApkShellext2.Properties {
         internal static global::System.Resources.ResourceManager ResourceManager {
             get {
                 if (object.ReferenceEquals(resourceMan, null)) {
-                    global::System.Resources.ResourceManager temp = new global::System.Resources.ResourceManager("ApkShellext2.Properties.Resources", typeof(Resources).Assembly);
+                    // Keep this custom initializer if this designer file is regenerated.
+                    // Chinese text lives in the primary assembly; other cultures
+                    // still use the normal satellite ResourceManager fallback.
+                    global::System.Resources.ResourceManager temp = new global::ApkShellext2.Properties.EmbeddedChineseResourceManager("ApkShellext2.Properties.Resources", typeof(Resources).Assembly);
                     resourceMan = temp;
                 }
                 return resourceMan;
