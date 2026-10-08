@@ -107,20 +107,20 @@ namespace ApkShellext2 {
             #region ContextMenu Panel
             ckAlwaysShowStore.Text = Resources.strAlwaysShowGooglePlay;
             toolTip1.SetToolTip(ckAlwaysShowStore, Resources.strAlwaysShowGooglePlayToolTip);
-            ckAlwaysShowStore.Checked = Utility.GetSetting("ShowAppStoreWhenMultiSelected") == "True";
-            ckShowMenuIcon.Checked = Utility.GetSetting("ShowMenuIcon") == "True";
+            ckAlwaysShowStore.Checked = Utility.GetSetting("ShowAppStoreWhenMultiSelected", "True") == "True";
+            ckShowMenuIcon.Checked = Utility.GetSetting("ShowMenuIcon", "True") == "True";
             ckShowMenuIcon.Text = Resources.strShowContextMenuIcon;
-            ckShowNewVersionInfo.Checked = Utility.GetSetting("ShowNewVersion") == "True";
+            ckShowNewVersionInfo.Checked = Utility.GetSetting("ShowNewVersion", "True") == "True";
             ckShowNewVersionInfo.Text = Resources.strShowNewVerInfo;
-            ckShowGoogle.Checked = Utility.GetSetting("ShowGooglePlay") == "True";
+            ckShowGoogle.Checked = Utility.GetSetting("ShowGooglePlay", "True") == "True";
             ckShowGoogle.Text = Resources.strShowGooglePlay;
             ckShowAM.Checked = Utility.GetSetting("ShowApkMirror") == "True";
             ckShowAM.Text = Resources.strShowApkMirror;
-            ckShowAmazon.Checked = Utility.GetSetting("ShowAmazonStore") == "True";
+            ckShowAmazon.Checked = Utility.GetSetting("ShowAmazonStore", "True") == "True";
             ckShowAmazon.Text = Resources.strShowAmazonStore;
-            ckShowApple.Checked = Utility.GetSetting("ShowAppleStore") == "True";
+            ckShowApple.Checked = Utility.GetSetting("ShowAppleStore", "True") == "True";
             ckShowApple.Text = Resources.strShowAppleStore;
-            ckShowMS.Checked = Utility.GetSetting("ShowMSStore") == "True";
+            ckShowMS.Checked = Utility.GetSetting("ShowMSStore", "True") == "True";
             ckShowMS.Text = Resources.strShowMSStore;
             ckShowAM.Checked = Utility.GetSetting("ShowApkMirror") == "True";
             ckShowAM.Text = Resources.strShowApkMirror;
