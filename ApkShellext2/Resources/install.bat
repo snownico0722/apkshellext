@@ -1,4 +1,5 @@
 @ECHO OFF
+SETLOCAL EnableExtensions
 ECHO #######################################################
 ECHO ##            APK Shell Extension  2                 ##
 ECHO ##                                                   ##
@@ -39,18 +40,38 @@ if '%errorlevel%' NEQ '0' (
     CD /D "%~dp0"
 :--------------------------------------
 
-REM SYSTEMINFO | FIND /i "x64-based pc"
-echo %PROCESSOR_IDENTIFIER% | FIND /i "x86"
-
-set FRAMEWORK=%windir%\Microsoft.NET\Framework
-set DOTNETVERSION=v4.0.30319
-IF %ERRORLEVEL%==1 (
-  set FRAMEWORK=%FRAMEWORK%64
+REM Register both COM bitnesses; do not remove or overwrite unrelated Shell keys.
+set "DLL=%~dp0apkshellext2.dll"
+set "REGASM32=%windir%\Microsoft.NET\Framework\v4.0.30319\regasm.exe"
+set "REGASM64=%windir%\Microsoft.NET\Framework64\v4.0.30319\regasm.exe"
+if not exist "%DLL%" (
+    ECHO ERROR: ApkShellext2.dll was not found next to this script.
+    exit /B 1
 )
-set REGASM="%FRAMEWORK%\%DOTNETVERSION%\regasm.exe"
-%REGASM% /codebase "%~dp0\apkshellext2.dll"
+set "REGISTERED=0"
+set "FAILED=0"
+if exist "%REGASM64%" (
+    ECHO Registering 64-bit Shell handlers...
+    "%REGASM64%" /codebase "%DLL%"
+    if errorlevel 1 set "FAILED=1"
+    set "REGISTERED=1"
+)
+if exist "%REGASM32%" (
+    ECHO Registering 32-bit Shell handlers...
+    "%REGASM32%" /codebase "%DLL%"
+    if errorlevel 1 set "FAILED=1"
+    set "REGISTERED=1"
+)
+if "%REGISTERED%"=="0" (
+    ECHO ERROR: The .NET Framework registration tool was not found.
+    exit /B 1
+)
+if "%FAILED%"=="1" (
+    ECHO ERROR: At least one registration command failed. See details above.
+    exit /B 1
+)
 
-ECHO Done!
+ECHO Registration completed. Restart Explorer manually if icons remain cached.
 ECHO.
 ECHO /-------------------------------------------------------------------\
 ECHO  apkshellext is an open-source project,

@@ -37,6 +37,15 @@ jobs:
           if (!(Test-Path "ApkShellext2/bin/Release/install.bat")) {
             throw "Original installation script was not copied"
           }
+      - name: Build portable release archives
+        shell: pwsh
+        run: ./scripts/package-release.ps1
+      - name: Upload release archives
+        uses: actions/upload-artifact@v4
+        with:
+          name: apkshellext2-release-archives
+          path: dist/*
+          if-no-files-found: error
       - name: Keep build output for manual Explorer smoke tests
         uses: actions/upload-artifact@v4
         with:

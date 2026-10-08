@@ -1,0 +1,52 @@
+param(
+    [string]$BuildDirectory = (Join-Path $PSScriptRoot '..\ApkShellext2\bin\Release'),
+    [string]$OutputDirectory = (Join-Path $PSScriptRoot '..\dist')
+)
+
+$ErrorActionPreference = 'Stop'
+$BuildDirectory = [IO.Path]::GetFullPath($BuildDirectory)
+$OutputDirectory = [IO.Path]::GetFullPath($OutputDirectory)
+if (-not (Test-Path (Join-Path $BuildDirectory 'ApkShellext2.dll'))) {
+    throw 'Build Release | Any CPU before packaging.'
+}
+New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
+
+$required = @('ApkShellext2.dll', 'install.bat', 'uninstall.bat', 'restart_explorer.bat')
+foreach ($name in $required) {
+    if (-not (Test-Path (Join-Path $BuildDirectory $name))) {
+        throw "Missing release component: $name"
+    }
+}
+$payload = @($required)
+$payload += @(Get-ChildItem -Path $BuildDirectory -Filter 'libwebp_*.dll' -File | ForEach-Object Name)
+
+$command = Get-Command '7z.exe' -ErrorAction SilentlyContinue
+$sevenZip = if ($command) { $command.Source } else { Join-Path $env:ProgramFiles '7-Zip\7z.exe' }
+$useSevenZip = Test-Path $sevenZip
+
+function Write-Package([string]$name, [string[]]$relativePaths) {
+    $extension = if ($useSevenZip) { '.7z' } else { '.zip' }
+    $destination = Join-Path $OutputDirectory ($name + $extension)
+    if (Test-Path $destination) { Remove-Item -LiteralPath $destination -Force }
+    if ($useSevenZip) {
+        Push-Location $BuildDirectory
+        try {
+            & $sevenZip a '-t7z' '-y' $destination @relativePaths | Out-Host
+            if ($LASTEXITCODE -ne 0) { throw "7-Zip packaging failed: $name" }
+        } finally { Pop-Location }
+    } else {
+        $absolutePaths = @($relativePaths | ForEach-Object { Join-Path $BuildDirectory $_ })
+        Compress-Archive -LiteralPath $absolutePaths -DestinationPath $destination
+    }
+    Write-Host "Created $destination"
+}
+
+Write-Package -name 'ApkShellext2' -relativePaths $payload
+
+# Keep the upstream release convention of separate optional language packs.
+foreach ($culture in @(Get-ChildItem -Path $BuildDirectory -Directory |
+        Where-Object { $_.Name -match '^[a-z]{2}-[A-Z]{2}$' })) {
+    if (Test-Path (Join-Path $culture.FullName 'ApkShellext2.resources.dll')) {
+        Write-Package -name $culture.Name -relativePaths @($culture.Name)
+    }
+}
