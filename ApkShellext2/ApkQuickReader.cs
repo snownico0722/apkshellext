@@ -1187,13 +1187,11 @@ namespace ApkQuickReader
                     manifest = reader.ReadBytes((int)entry.Size);
                 }
 
+                // Preserve the original missing-resource check, but defer
+                // reading resources.arsc until a resource lookup needs it.
                 entry = zip.GetEntry(Resources_arsc);
                 if (entry == null)
                     throw new InvalidDataException("APK is missing resources.arsc");
-                using (Stream entryStream = zip.GetInputStream(entry))
-                using (BinaryReader reader = new BinaryReader(entryStream)) {
-                    resources = reader.ReadBytes((int)entry.Size);
-                }
             } catch {
                 CloseArchive();
                 throw;
@@ -1240,6 +1238,19 @@ namespace ApkQuickReader
                 inner.Write(buffer, offset, count);
             }
             // Intentionally do not dispose inner: it belongs to the caller.
+        }
+
+        private byte[] ResourceTable {
+            get {
+                if (resources == null) {
+                    ZipEntry entry = zip.GetEntry(Resources_arsc);
+                    using (Stream stream = zip.GetInputStream(entry))
+                    using (BinaryReader reader = new BinaryReader(stream)) {
+                        resources = reader.ReadBytes((int)entry.Size);
+                    }
+                }
+                return resources;
+            }
         }
 
         public override AppPackageReader.AppType Type {
@@ -1347,16 +1358,16 @@ namespace ApkQuickReader
                     }
                 } else if (string.Equals(ext, ".xml", StringComparison.OrdinalIgnoreCase)) {
                     XmlDocument doc = ExtractCompressedXml(path);
-                    if (doc.FirstChild.Name == "adaptive-icon") {
+                    if (doc.DocumentElement.Name == "adaptive-icon") {
                         return parseAdaptiveIcon(doc, size);
-                    } else if (doc.FirstChild.Name == "vector") { // this is a vectordrawable
+                    } else if (doc.DocumentElement.Name == "vector") { // this is a vectordrawable
                         return parseVectorDrawable(doc, size);
-                    } else if (doc.FirstChild.Name == "shape") {
+                    } else if (doc.DocumentElement.Name == "shape") {
                         return parseShape(doc, size);
-                    } else if (doc.FirstChild.Name == "layer-list") {
+                    } else if (doc.DocumentElement.Name == "layer-list") {
                         return parseLayerDrawable(doc, size);
                     } else {
-                        throw new Exception("unsupported image file " + path + " with tag " + doc.FirstChild.Name);
+                        throw new Exception("unsupported image file " + path + " with tag " + doc.DocumentElement.Name);
                     }
                 }
             }
@@ -1938,7 +1949,8 @@ namespace ApkQuickReader
             searchstack.Push(id);
             ApkResource res = new ApkResource(id);
 
-            using (MemoryStream ms = new MemoryStream(resources))
+            byte[] resourceTable = ResourceTable;
+            using (MemoryStream ms = new MemoryStream(resourceTable))
             using (BinaryReader br = new BinaryReader(ms)) {
                 ms.Seek(8, SeekOrigin.Begin); // jump type/headersize/chunksize
                 int packageCount = br.ReadInt32();
@@ -2009,7 +2021,7 @@ namespace ApkQuickReader
                                     byte dataType = br.ReadByte();
                                     uint data = br.ReadUInt32();
                                     if (dataType == (byte)DATA_TYPE.TYPE_STRING) {
-                                        res.Add(conf, QuickSearchStringPool(resources, data));
+                                        res.Add(conf, QuickSearchStringPool(resourceTable, data));
                                     } else if (dataType == (byte)DATA_TYPE.TYPE_REFERENCE) {
                                         // the entry is null, or it's referencing in loop, go to next chunk
                                         if (data == 0x00000000 || searchstack.Contains(data)) {

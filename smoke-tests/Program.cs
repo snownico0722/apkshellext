@@ -1,6 +1,9 @@
 using System;
 using System.IO;
 using System.IO.Compression;
+using System.Drawing;
+using System.Drawing.Imaging;
+using System.Reflection;
 using ApkQuickReader;
 using ApkShellext2;
 
@@ -12,13 +15,14 @@ namespace ApkShellextSmokeTests {
             try {
                 CheckBrokenFileDoesNotRemainOpen(Path.Combine(dir, "broken.apk"));
                 CheckSuccessfulReadDoesNotRemainOpen(Path.Combine(dir, "valid.apk"));
+                CheckFirstEntryUppercasePng(Path.Combine(dir, "first-entry.apk"));
                 CheckCallerStreamIsNotClosed();
                 CheckNestedAndroidPackages(dir);
                 if (AppPackageReader.getAppType("sample.APK") != AppPackageReader.AppType.AndroidApp ||
                     AppPackageReader.getAppType("sample.IPA") != AppPackageReader.AppType.iOSApp ||
                     AppPackageReader.getAppType("sample.APPX") != AppPackageReader.AppType.WindowsPhoneApp)
                     throw new Exception("Case-insensitive package detection failed");
-                Console.WriteLine("PASS: APK stream lifetime, uppercase extensions, and nested Android packages");
+                Console.WriteLine("PASS: APK stream lifetime, first-entry PNG, lazy resources and bundles");
                 return 0;
             } catch (Exception ex) {
                 Console.Error.WriteLine("FAIL: " + ex);
@@ -49,10 +53,35 @@ namespace ApkShellextSmokeTests {
                 WriteEntry(archive, "resources.arsc");
             }
             using (var reader = new ApkReader(path)) {
-                if (reader == null)
-                    throw new Exception("Unable to open ZIP-based APK");
+                var resourceField = typeof(ApkReader).GetField("resources",
+                    BindingFlags.Instance | BindingFlags.NonPublic);
+                if (resourceField == null || resourceField.GetValue(reader) != null)
+                    throw new Exception("Resource table was loaded before it was requested");
             }
             using (var exclusive = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) {
+            }
+        }
+
+        private static void CheckFirstEntryUppercasePng(string path) {
+            byte[] image;
+            using (var buffer = new MemoryStream()) {
+                using (var bitmap = new Bitmap(4, 4)) {
+                    bitmap.SetPixel(0, 0, Color.Red);
+                    bitmap.Save(buffer, ImageFormat.Png);
+                }
+                image = buffer.ToArray();
+            }
+            using (var archive = new ZipArchive(new FileStream(path, FileMode.Create, FileAccess.Write), ZipArchiveMode.Create)) {
+                using (Stream destination = archive.CreateEntry("res/drawable/ICON.PNG").Open())
+                    destination.Write(image, 0, image.Length);
+                WriteEntry(archive, "androidmanifest.xml");
+                WriteEntry(archive, "resources.arsc");
+            }
+            using (var reader = new ApkReader(path))
+            using (Bitmap icon = reader.getImage("res/drawable/ICON.PNG", new Size(48, 48))) {
+                if (icon == null || icon.Width != 48 || icon.Height != 48 ||
+                    icon.GetPixel(0, 0).A == 0)
+                    throw new Exception("Uppercase PNG in the first ZIP entry was not decoded");
             }
         }
 
