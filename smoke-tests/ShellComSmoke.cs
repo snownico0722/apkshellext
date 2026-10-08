@@ -431,6 +431,7 @@ namespace ApkShellextIntegration {
                     Require(hasError, "Damaged APK details must report the read failure");
 
                     Type preferencesType = shellAssembly.GetType("ApkShellext2.Preferences", true);
+                    MeasureSettingsStartup(preferencesType);
                     using (Form preferences = (Form)Activator.CreateInstance(preferencesType)) {
                         Require(!ContainsControl(preferences, typeof(TreeView)) &&
                             !ContainsControl(preferences, typeof(LinkLabel)),
@@ -478,6 +479,27 @@ namespace ApkShellextIntegration {
                 }
             }
             Console.WriteLine("PASS: embedded Chinese/English COM UI, thumbnail defaults, rename settings and broken-APK menu command");
+        }
+
+        // Observational timing only; no machine-dependent millisecond assertion.
+        // The Show/DoEvents segment covers handle creation, layout and first paint.
+        private static void MeasureSettingsStartup(Type preferencesType) {
+            for (int i = 0; i < 3; i++) {
+                var stopwatch = Stopwatch.StartNew();
+                using (Form form = (Form)Activator.CreateInstance(preferencesType)) {
+                    long constructorMs = stopwatch.ElapsedMilliseconds;
+                    bool shown = false;
+                    form.Shown += (sender, args) => shown = true;
+                    form.Show();
+                    Application.DoEvents();
+                    Require(shown && form.IsHandleCreated,
+                        "Settings form did not reach the first Shown event");
+                    Console.WriteLine("METRIC settings-open sample=" + i +
+                        " constructor_ms=" + constructorMs +
+                        " show_paint_ms=" + (stopwatch.ElapsedMilliseconds - constructorMs));
+                    form.Close();
+                }
+            }
         }
 
         // Opening the store for a damaged IPA must not throw out of the Explorer
