@@ -12,18 +12,20 @@ namespace ApkShellext2 {
     public partial class Preferences : Form {
         private bool formLoaded;
         private bool needClearThumbnailCache;
+        private CultureInfo[] supportedLanguages;
 
         public string currentFile = "";
 
         public Preferences() {
             InitializeComponent();
-            // Build the populated page before ShowDialog creates a visible form.
+            // Avoid repeated layout while populating controls that have no native handles yet.
             SuspendLayoutTree(this);
             try {
                 InitializeSettings();
             } finally {
                 ResumeLayoutTree(this);
             }
+            // This buffers the form background, not the child windows.
             DoubleBuffered = true;
         }
 
@@ -50,11 +52,11 @@ namespace ApkShellext2 {
                 { "ToolTipPattern", NonLocalizeResources.strInfoTipDefault }
             });
 
-            CultureInfo[] languages = Utility.getSupportedLanguages();
+            supportedLanguages = Utility.getSupportedLanguages();
             int selectedLanguage = 0;
-            for (int i = 0; i < languages.Length; i++) {
-                combLanguage.Items.Add(languages[i].NativeName);
-                if (languages[i].Name == Thread.CurrentThread.CurrentUICulture.Name)
+            for (int i = 0; i < supportedLanguages.Length; i++) {
+                combLanguage.Items.Add(supportedLanguages[i].NativeName);
+                if (supportedLanguages[i].Name == Thread.CurrentThread.CurrentUICulture.Name)
                     selectedLanguage = i;
             }
             if (combLanguage.Items.Count > 0)
@@ -86,73 +88,82 @@ namespace ApkShellext2 {
                 Utility.NewVersionAvailible() ? NonLocalizeResources.iconUpdate : NonLocalizeResources.iconGitHub, 16);
             btnUpdate.TextImageRelation = TextImageRelation.ImageBeforeText;
 
-            RefreshLocalizedText();
+            RefreshLocalizedTextCore();
             formLoaded = true;
         }
 
-        // Changing the language updates labels without resetting the current field values.
+        // Initial values are already set inside one suspended layout transaction.
+        // Language changes use the same text updates in their own transaction.
         private void RefreshLocalizedText() {
             SuspendLayoutTree(this);
             try {
-                Text = Resources.strPreferencesCaption;
-                grpGeneral.Text = Resources.twGeneral;
-                grpIcon.Text = Resources.twIcon;
-                grpContextMenu.Text = Resources.twContextMenu;
-                grpRenaming.Text = Resources.twRename;
-                grpInfoTip.Text = Resources.twInfotip;
-
-                lblLanguage.Text = Resources.strLanguages;
-                lblCurrentVersion.Text = string.Format(Resources.strCurrVersion, Assembly.GetExecutingAssembly().GetName().Version);
-                if (Utility.NewVersionAvailible()) {
-                    lblNewVer.Text = string.Format(Resources.strNewVersionAvailible, Utility.GetSetting("LatestVersion"));
-                    btnUpdate.Text = Resources.btnUpdate;
-                    toolTip1.SetToolTip(btnUpdate, Resources.btnUpdateToolTip);
-                } else {
-                    lblNewVer.Text = Resources.strGotLatest;
-                    btnUpdate.Text = Resources.btnGitHub;
-                    toolTip1.SetToolTip(btnUpdate, Resources.strGotoProjectSite);
-                }
-
-                ckShowOverlay.Text = Resources.strShowOverlayIcon;
-                toolTip1.SetToolTip(ckShowOverlay, Resources.strShowOverlayIconToolTip);
-                ckShowIPA.Text = Resources.strShowIpaIcon;
-                ckShowAppxIcon.Text = Resources.strShowAppxIcon;
-                ckStretchThumbnail.Text = Resources.strStretchThumbnail;
-                ckEnableThumbnail.Text = Resources.strEnableThumbnail;
-                ckAdaptiveIconSupport.Text = Resources.strSupportAdaptiveIcon;
-                btnClearCache.Text = Resources.strClearCache;
-
-                ckAlwaysShowStore.Text = Resources.strAlwaysShowGooglePlay;
-                toolTip1.SetToolTip(ckAlwaysShowStore, Resources.strAlwaysShowGooglePlayToolTip);
-                ckShowMenuIcon.Text = Resources.strShowContextMenuIcon;
-                ckShowNewVersionInfo.Text = Resources.strShowNewVerInfo;
-                ckShowGoogle.Text = Resources.strShowGooglePlay;
-                ckShowAmazon.Text = Resources.strShowAmazonStore;
-                ckShowApple.Text = Resources.strShowAppleStore;
-                ckShowMS.Text = Resources.strShowMSStore;
-                ckShowAM.Text = Resources.strShowApkMirror;
-
-                lblRenamePattern.Text = Resources.strRenamePattern;
-                ckReplaceSpace.Text = Resources.strReplaceSpaceWith_;
-                lblInfoTipPattern.Text = Resources.strInfoTipPattern;
-                lblPatternVariablesHint.Text = Resources.strPatternVariablesHint;
-                lblInfoTipVariablesHint.Text = Resources.strPatternVariablesHint;
-                btnResetRenamePattern.Text = Resources.btnResetPattern;
-                btnResetInfoTipPattern.Text = Resources.btnResetPattern;
-                btnOK.Text = Resources.btnOK;
+                RefreshLocalizedTextCore();
             } finally {
                 ResumeLayoutTree(this);
             }
         }
 
-        // Suspend nested auto-sizing table layouts while localized text changes.
+        private void RefreshLocalizedTextCore() {
+            Text = Resources.strPreferencesCaption;
+            grpGeneral.Text = Resources.twGeneral;
+            grpIcon.Text = Resources.twIcon;
+            grpContextMenu.Text = Resources.twContextMenu;
+            grpRenaming.Text = Resources.twRename;
+            grpInfoTip.Text = Resources.twInfotip;
+
+            lblLanguage.Text = Resources.strLanguages;
+            lblCurrentVersion.Text = string.Format(Resources.strCurrVersion, Assembly.GetExecutingAssembly().GetName().Version);
+            if (Utility.NewVersionAvailible()) {
+                lblNewVer.Text = string.Format(Resources.strNewVersionAvailible, Utility.GetSetting("LatestVersion"));
+                btnUpdate.Text = Resources.btnUpdate;
+                toolTip1.SetToolTip(btnUpdate, Resources.btnUpdateToolTip);
+            } else {
+                lblNewVer.Text = Resources.strGotLatest;
+                btnUpdate.Text = Resources.btnGitHub;
+                toolTip1.SetToolTip(btnUpdate, Resources.strGotoProjectSite);
+            }
+
+            ckShowOverlay.Text = Resources.strShowOverlayIcon;
+            toolTip1.SetToolTip(ckShowOverlay, Resources.strShowOverlayIconToolTip);
+            ckShowIPA.Text = Resources.strShowIpaIcon;
+            ckShowAppxIcon.Text = Resources.strShowAppxIcon;
+            ckStretchThumbnail.Text = Resources.strStretchThumbnail;
+            ckEnableThumbnail.Text = Resources.strEnableThumbnail;
+            ckAdaptiveIconSupport.Text = Resources.strSupportAdaptiveIcon;
+            btnClearCache.Text = Resources.strClearCache;
+
+            ckAlwaysShowStore.Text = Resources.strAlwaysShowGooglePlay;
+            toolTip1.SetToolTip(ckAlwaysShowStore, Resources.strAlwaysShowGooglePlayToolTip);
+            ckShowMenuIcon.Text = Resources.strShowContextMenuIcon;
+            ckShowNewVersionInfo.Text = Resources.strShowNewVerInfo;
+            ckShowGoogle.Text = Resources.strShowGooglePlay;
+            ckShowAmazon.Text = Resources.strShowAmazonStore;
+            ckShowApple.Text = Resources.strShowAppleStore;
+            ckShowMS.Text = Resources.strShowMSStore;
+            ckShowAM.Text = Resources.strShowApkMirror;
+
+            lblRenamePattern.Text = Resources.strRenamePattern;
+            ckReplaceSpace.Text = Resources.strReplaceSpaceWith_;
+            lblInfoTipPattern.Text = Resources.strInfoTipPattern;
+            lblPatternVariablesHint.Text = Resources.strPatternVariablesHint;
+            lblInfoTipVariablesHint.Text = Resources.strPatternVariablesHint;
+            btnResetRenamePattern.Text = Resources.btnResetPattern;
+            btnResetInfoTipPattern.Text = Resources.btnResetPattern;
+            btnOK.Text = Resources.btnOK;
+        }
+
+        // Only containers perform child layout; leaf controls do not need suspension.
         private static void SuspendLayoutTree(Control control) {
+            if (!control.HasChildren)
+                return;
             control.SuspendLayout();
             foreach (Control child in control.Controls)
                 SuspendLayoutTree(child);
         }
 
         private static void ResumeLayoutTree(Control control) {
+            if (!control.HasChildren)
+                return;
             foreach (Control child in control.Controls)
                 ResumeLayoutTree(child);
             control.ResumeLayout(true);
@@ -161,11 +172,10 @@ namespace ApkShellext2 {
         private void combLanguage_SelectedIndexChanged(object sender, EventArgs e) {
             if (!formLoaded || combLanguage.SelectedIndex < 0)
                 return;
-            CultureInfo[] languages = Utility.getSupportedLanguages();
-            if (combLanguage.SelectedIndex >= languages.Length)
+            if (supportedLanguages == null || combLanguage.SelectedIndex >= supportedLanguages.Length)
                 return;
 
-            Utility.SaveSetting("Language", languages[combLanguage.SelectedIndex].Name);
+            Utility.SaveSetting("Language", supportedLanguages[combLanguage.SelectedIndex].Name);
             Utility.Localize();
             RefreshLocalizedText();
         }

@@ -129,7 +129,7 @@ namespace ApkShellext2 {
                 mainMenu.DropDownItems.Add(dumpOtherMenu);
             }
 
-// The single-file details command is available for every supported package type.
+            // The single-file details command is available for every supported package type.
             var detailsMenu = new ToolStripMenuItem {
                 Text = Resources.menuMoreDetails,
                 Enabled = singleSelected

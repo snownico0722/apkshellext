@@ -494,6 +494,14 @@ namespace ApkShellextIntegration {
                     Application.DoEvents();
                     Require(shown && form.IsHandleCreated,
                         "Settings form did not reach the first Shown event");
+                    Require(form.Controls.Count == 2 && form.Controls[0] is Panel &&
+                        form.Controls[1] is FlowLayoutPanel,
+                        "Settings should have one scroll region and one docked footer");
+                    var content = (Panel)form.Controls[0];
+                    var footer = (FlowLayoutPanel)form.Controls[1];
+                    Require(content.Height > 0 && content.Bottom <= footer.Top &&
+                        footer.Bottom <= form.ClientSize.Height,
+                        "Settings content and footer overlap or extend outside the window");
                     Console.WriteLine("METRIC settings-open sample=" + i +
                         " constructor_ms=" + constructorMs +
                         " show_paint_ms=" + (stopwatch.ElapsedMilliseconds - constructorMs));

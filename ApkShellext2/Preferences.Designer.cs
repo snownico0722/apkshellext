@@ -170,24 +170,17 @@ namespace ApkShellext2 {
             };
             buttons.Controls.Add(btnOK);
 
-            var root = new System.Windows.Forms.TableLayoutPanel {
-                Dock = System.Windows.Forms.DockStyle.Fill,
-                ColumnCount = 1,
-                RowCount = 2
-            };
-            root.SuspendLayout();
-            root.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 100F));
-            root.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100F));
-            root.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 48F));
-            root.Controls.Add(scroll, 0, 0);
-            root.Controls.Add(buttons, 0, 1);
-            root.ResumeLayout(true);
+            // A scrolling content area and a fixed footer only require simple docking,
+            // not another auto-sizing TableLayoutPanel.
+            buttons.Dock = System.Windows.Forms.DockStyle.Bottom;
+            buttons.Height = 48;
 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(600, 590);
             this.MinimumSize = new System.Drawing.Size(470, 380);
-            this.Controls.Add(root);
+            this.Controls.Add(scroll);
+            this.Controls.Add(buttons);
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.SizableToolWindow;
             this.Name = "Preferences";
             this.ShowIcon = false;
