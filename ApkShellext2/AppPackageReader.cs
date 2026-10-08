@@ -16,6 +16,9 @@ namespace ApkShellext2 {
     /// </summary>
     public class AppPackageReader : IDisposable{
         public const string extAPK = ".apk";
+        public const string extXAPK = ".xapk";
+        public const string extAPKS = ".apks";
+        public const string extAPKM = ".apkm";
         public const string extIPA = ".ipa";
         public const string extAPPX = ".appx";
         public const string extAPPXBUNDLE = ".appxbundle";
@@ -87,7 +90,7 @@ namespace ApkShellext2 {
 
         public static AppType getAppType(string path) {
             string suffix = Path.GetExtension(path).ToLowerInvariant();
-            if (suffix == extAPK) {
+            if (suffix == extAPK || suffix == extXAPK || suffix == extAPKS || suffix == extAPKM) {
                 return AppType.AndroidApp;
             } else if (suffix == extIPA) {
                 return AppType.iOSApp;
@@ -103,7 +106,9 @@ namespace ApkShellext2 {
         public static AppPackageReader Read(string path) {
             switch (getAppType(path)) {
                 case AppType.AndroidApp:
-                    return new ApkReader(path);
+                    return Path.GetExtension(path).Equals(extAPK, StringComparison.OrdinalIgnoreCase)
+                        ? (AppPackageReader)new ApkReader(path)
+                        : new ApkBundleReader(path);
                 case AppType.iOSApp:
                     return new IpaReader(path);
                 case AppType.WindowsPhoneAppBundle:

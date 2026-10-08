@@ -13,11 +13,12 @@ namespace ApkShellextSmokeTests {
                 CheckBrokenFileDoesNotRemainOpen(Path.Combine(dir, "broken.apk"));
                 CheckSuccessfulReadDoesNotRemainOpen(Path.Combine(dir, "valid.apk"));
                 CheckCallerStreamIsNotClosed();
+                CheckNestedAndroidPackages(dir);
                 if (AppPackageReader.getAppType("sample.APK") != AppPackageReader.AppType.AndroidApp ||
                     AppPackageReader.getAppType("sample.IPA") != AppPackageReader.AppType.iOSApp ||
                     AppPackageReader.getAppType("sample.APPX") != AppPackageReader.AppType.WindowsPhoneApp)
                     throw new Exception("Case-insensitive package detection failed");
-                Console.WriteLine("PASS: invalid/valid APK stream lifetime and uppercase extensions");
+                Console.WriteLine("PASS: APK stream lifetime, uppercase extensions, and nested Android packages");
                 return 0;
             } catch (Exception ex) {
                 Console.Error.WriteLine("FAIL: " + ex);
@@ -65,6 +66,35 @@ namespace ApkShellextSmokeTests {
                 }
                 if (!supplied.CanRead)
                     throw new Exception("The APK parser closed its caller-owned stream");
+            }
+        }
+
+        private static void CheckNestedAndroidPackages(string dir) {
+            byte[] baseApk;
+            using (var buffer = new MemoryStream()) {
+                using (var inner = new ZipArchive(buffer, ZipArchiveMode.Create, true)) {
+                    WriteEntry(inner, "androidmanifest.xml");
+                    WriteEntry(inner, "resources.arsc");
+                }
+                baseApk = buffer.ToArray();
+            }
+
+            foreach (string ext in new[] { ".xapk", ".apks", ".apkm" }) {
+                string path = Path.Combine(dir, "nested" + ext);
+                using (var bundle = new ZipArchive(new FileStream(path, FileMode.Create, FileAccess.Write), ZipArchiveMode.Create)) {
+                    // The first APK entry is an unusable split; prefer base.apk.
+                    using (Stream split = bundle.CreateEntry("split_config.arm64_v8a.apk").Open())
+                        split.Write(new byte[] { 0, 1, 2 }, 0, 3);
+                    using (Stream nested = bundle.CreateEntry("base.apk").Open())
+                        nested.Write(baseApk, 0, baseApk.Length);
+                }
+                using (AppPackageReader reader = AppPackageReader.Read(path)) {
+                    if (!(reader is ApkReader) || reader.Type != AppPackageReader.AppType.AndroidApp ||
+                        reader.FileName != path)
+                        throw new Exception("Bundle reader did not preserve the original APK metadata API");
+                }
+                using (var exclusive = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) {
+                }
             }
         }
 

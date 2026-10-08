@@ -28,6 +28,9 @@ namespace ApkShellext2 {
     [ComVisible(true)]
     [ClassInterface(ClassInterfaceType.None)]
     [COMServerAssociation(AssociationType.ClassOfExtension, ".apk")]
+    [COMServerAssociation(AssociationType.ClassOfExtension, ".xapk")]
+    [COMServerAssociation(AssociationType.ClassOfExtension, ".apks")]
+    [COMServerAssociation(AssociationType.ClassOfExtension, ".apkm")]
     [COMServerAssociation(AssociationType.ClassOfExtension, ".ipa")]
     [COMServerAssociation(AssociationType.ClassOfExtension, ".appxbundle")]
     [COMServerAssociation(AssociationType.ClassOfExtension, ".appx")]
@@ -62,7 +65,10 @@ namespace ApkShellext2 {
 
             bool hasapk = false, hasipa = false, hasappx = false, hasappxbundle = false;
             foreach (var p in SelectedItemPaths) {
-                if (p.EndsWith(AppPackageReader.extAPK))
+                if (p.EndsWith(AppPackageReader.extAPK, StringComparison.OrdinalIgnoreCase) ||
+                    p.EndsWith(AppPackageReader.extXAPK, StringComparison.OrdinalIgnoreCase) ||
+                    p.EndsWith(AppPackageReader.extAPKS, StringComparison.OrdinalIgnoreCase) ||
+                    p.EndsWith(AppPackageReader.extAPKM, StringComparison.OrdinalIgnoreCase))
                     hasapk = true;
                 if (p.EndsWith(AppPackageReader.extIPA))
                     hasipa = true;
@@ -429,7 +435,7 @@ namespace ApkShellext2 {
 
         private void gotoGooglePlay() {
             foreach (var p in SelectedItemPaths) {
-                using (ApkReader reader = new ApkReader(p)) {
+                using (AppPackageReader reader = AppPackageReader.Read(p)) {
                     string package = reader.PackageName;
                     Process.Start(string.Format(Properties.NonLocalizeResources.urlGooglePlay, package));
                 }
@@ -438,7 +444,7 @@ namespace ApkShellext2 {
 
         private void gotoAmazonAppStore() {
             foreach (var p in SelectedItemPaths) {
-                using (ApkReader reader = new ApkReader(p)) {
+                using (AppPackageReader reader = AppPackageReader.Read(p)) {
                     string package = reader.PackageName;
                     Process.Start(string.Format(Properties.NonLocalizeResources.urlAmazonAppStore, package));
                 }
@@ -447,7 +453,7 @@ namespace ApkShellext2 {
 
         private void gotoApkMirror() {
             foreach (var p in SelectedItemPaths) {
-                using (ApkReader reader = new ApkReader(p)) {
+                using (AppPackageReader reader = AppPackageReader.Read(p)) {
                     string package = reader.PackageName;
                     Process.Start(string.Format(Properties.NonLocalizeResources.urlApkMirror, reader.Publisher, package));
                 }

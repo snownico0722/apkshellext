@@ -18,6 +18,9 @@ namespace ApkShellext2 {
     [ComVisible(true)]
     [ClassInterface(ClassInterfaceType.None)]
     [COMServerAssociation(AssociationType.ClassOfExtension, ".apk")]
+    [COMServerAssociation(AssociationType.ClassOfExtension, ".xapk")]
+    [COMServerAssociation(AssociationType.ClassOfExtension, ".apks")]
+    [COMServerAssociation(AssociationType.ClassOfExtension, ".apkm")]
     public class ApkThumbnailHandler : SharpThumbnailHandler {
         protected override Bitmap GetThumbnailImage(uint width) {
             Bitmap m_icon = null;
@@ -33,7 +36,7 @@ namespace ApkShellext2 {
 
             try {
                 int outputSize = (int) width;
-                using (AppPackageReader reader = new ApkReader(SelectedItemStream)) {
+                using (AppPackageReader reader = OpenAndroidReader(SelectedItemStream)) {
                     Log("Reading stream from " + reader.AppName);
                     m_icon = reader.Icon;
                 }
@@ -69,6 +72,19 @@ namespace ApkShellext2 {
                 // read error, draw the default icon
                 //m_icon = Utility.AppTypeIcon(AppPackageReader.AppType.AndroidApp);
                 return null;
+            }
+        }
+
+        private static ApkReader OpenAndroidReader(Stream stream) {
+            if (stream.CanSeek)
+                stream.Position = 0;
+            try {
+                return new ApkReader(stream);
+            } catch (InvalidDataException) {
+                // The outer ZIP has no Android manifest: try its base APK entry.
+                if (stream.CanSeek)
+                    stream.Position = 0;
+                return new ApkBundleReader(stream);
             }
         }
 
