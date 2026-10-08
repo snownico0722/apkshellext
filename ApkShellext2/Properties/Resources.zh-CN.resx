@@ -401,6 +401,6 @@
     <value>包内信息读取失败</value>
   </data>
   <data name="strPatternVariablesHint" xml:space="preserve">
-    <value>可用变量：%AppName%、%Package%、%Version%、%Revision%、%Publisher%、%FileSize%、%OS%、%LastModify%</value>
+    <value>可用变量：%AppName%、%Package%、%Version%、%Revision%、%Publisher%、%FileSize%、%OS%、%LastModify%、%Debuggable%&#10;Android 清单属性：%Attr(manifest/application,label)%（标签路径、属性名）</value>
   </data>
 </root>
