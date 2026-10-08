@@ -66,5 +66,10 @@ jobs:
           }
           $assets = @(Get-ChildItem -Path 'dist' -File | ForEach-Object FullName)
           if ($assets.Count -eq 0) { throw 'There are no release archives.' }
-          & gh release create $tag @assets --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "ApkShellExt $tag" --notes-file 'RELEASE_NOTES_v0.3.0.md' --latest
+          $notes = "RELEASE_NOTES_$tag.md"
+          if (Test-Path -LiteralPath $notes) {
+            & gh release create $tag @assets --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "ApkShellExt $tag" --notes-file $notes --latest
+          } else {
+            & gh release create $tag @assets --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "ApkShellExt $tag" --generate-notes --latest
+          }
           if ($LASTEXITCODE -ne 0) { throw "GitHub Release creation failed: $tag" }
