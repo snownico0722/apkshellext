@@ -1661,6 +1661,9 @@ namespace ApkQuickReader
                     RES_TYPE chunkType = (RES_TYPE)br.ReadInt16();
                     short headerSize = br.ReadInt16();
                     int chunkSize = br.ReadInt32();
+                    if (chunkSize < 8 || headerSize < 8 || headerSize > chunkSize ||
+                        chunkPos + chunkSize > ms.Length)
+                        throw new InvalidDataException("Invalid binary Android manifest chunk size");
                     if (chunkType == RES_TYPE.RES_XML_START_ELEMENT_TYPE) {
                         tagDepth++;
 
