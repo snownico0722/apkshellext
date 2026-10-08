@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Specialized;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
@@ -328,6 +329,27 @@ namespace ApkShellextIntegration {
                         dump.Invoke(menu, new object[] {
                             ShellFixtures.PathFor(dir, "broken.apk"), "AndroidManifest.xml"
                         });
+                        // Context commands must be flat, including both extract options
+                        // and the store links, with one single-file details entry.
+                        MethodInfo createMenu = type.GetMethod("CreateMenu",
+                            BindingFlags.NonPublic | BindingFlags.Instance);
+                        using (var strip = (ContextMenuStrip)createMenu.Invoke(menu, null)) {
+                            Require(strip.Items.Count == 1, "Expected one extension root menu");
+                            var root = strip.Items[0] as ToolStripMenuItem;
+                            Require(root != null, "Context menu root must be a menu item");
+                            bool foundMore = false;
+                            foreach (ToolStripItem item in root.DropDownItems) {
+                                var command = item as ToolStripMenuItem;
+                                if (command == null) continue;
+                                Require(command.DropDownItems.Count == 0,
+                                    "Context menu has an unexpected nested submenu: " + command.Text);
+                                if (command.Text == "More details..." || command.Text == "更多...") {
+                                    Require(command.Enabled, "Single-file details action should be enabled");
+                                    foundMore = true;
+                                }
+                            }
+                            Require(foundMore, "Missing single-file details command");
+                        }
                     } finally {
                         if (dataPointer != IntPtr.Zero) Marshal.Release(dataPointer);
                         Native.Release(menu);
@@ -362,8 +384,32 @@ namespace ApkShellextIntegration {
                         Thread.CurrentThread.CurrentUICulture = originalUICulture;
                     }
 
+                    Type detailsType = shellAssembly.GetType("ApkShellext2.AppDetailsDialog", true);
+                    MethodInfo readDetails = detailsType.GetMethod("ReadDetails",
+                        BindingFlags.NonPublic | BindingFlags.Static);
+                    var rows = (IEnumerable<KeyValuePair<string, string>>)readDetails.Invoke(
+                        null, new object[] { path });
+                    bool hasPackage = false;
+                    foreach (var row in rows)
+                        if (row.Value == ShellFixtures.PackageName) hasPackage = true;
+                    Require(hasPackage, "Details did not include the Android package name");
+
+                    var brokenRows = (IEnumerable<KeyValuePair<string, string>>)readDetails.Invoke(
+                        null, new object[] { ShellFixtures.PathFor(dir, "broken.apk") });
+                    bool hasError = false;
+                    foreach (var row in brokenRows)
+                        if (row.Value.Contains("End of Central Directory") ||
+                            row.Key == "Failed to read package metadata" ||
+                            row.Key == "包内信息读取失败") hasError = true;
+                    Require(hasError, "Damaged APK details must report the read failure");
+
                     Type preferencesType = shellAssembly.GetType("ApkShellext2.Preferences", true);
                     using (Form preferences = (Form)Activator.CreateInstance(preferencesType)) {
+                        Require(!ContainsControl(preferences, typeof(TreeView)) &&
+                            !ContainsControl(preferences, typeof(LinkLabel)),
+                            "Settings still contains tree or wiki/translation navigation");
+                        Require(ContainsScrollingPanel(preferences),
+                            "Unified settings page must scroll");
                         FieldInfo field = preferencesType.GetField("txtRenamePattern",
                             BindingFlags.NonPublic | BindingFlags.Instance);
                         TextBox textbox = (TextBox)field.GetValue(preferences);
@@ -389,6 +435,23 @@ namespace ApkShellextIntegration {
                 key.DeleteValue(name, false);
             else
                 key.SetValue(name, original);
+        }
+
+        private static bool ContainsControl(Control parent, Type kind) {
+            foreach (Control child in parent.Controls) {
+                if (kind.IsInstanceOfType(child) || ContainsControl(child, kind))
+                    return true;
+            }
+            return false;
+        }
+
+        private static bool ContainsScrollingPanel(Control parent) {
+            foreach (Control child in parent.Controls) {
+                var panel = child as Panel;
+                if (panel != null && panel.AutoScroll) return true;
+                if (ContainsScrollingPanel(child)) return true;
+            }
+            return false;
         }
 
         private static void CheckContextMenu(string[] files) {
