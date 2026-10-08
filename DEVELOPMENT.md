@@ -7,8 +7,10 @@ This fork follows the upstream **ApkShellext2** branch. Work is incremental: **k
 - Windows 10/11 and Visual Studio 2022 with the **.NET desktop development** workload and .NET Framework 4.8 targeting pack.
 - Clone with submodules: `git clone --recurse-submodules https://github.com/snownico0722/apkshellext.git`. For an existing clone run `git submodule update --init --recursive`.
 - Open `ApkShellext2.sln` and build **Release | Any CPU**, or execute `msbuild ApkShellext2.sln /m /p:Configuration=Release` from a Visual Studio Developer Command Prompt.
-- The normal build copies the existing installer/uninstaller scripts and native WebP DLLs to `ApkShellext2/bin/Release/`. It does **not** install a Shell extension, restart Explorer, or require a locally installed 7-Zip. Release archives can be packaged separately.
+- The normal build copies the existing installer/uninstaller scripts and native WebP DLLs to `ApkShellext2/bin/Release/`. It does **not** install a Shell extension, restart Explorer, or require a locally installed 7-Zip. Use `pwsh -File scripts/package-release.ps1` to package a Release build (7z when available, otherwise built-in ZIP), including optional language packs.
 - The service project remains in the repository; it can be built explicitly with `msbuild ApkShellextService/apkShellextService.csproj /p:Configuration=Release`. Normal builds do not install/start the service.
+
+The original installer/uninstaller scripts remain available. They now run both 32-bit and 64-bit `RegAsm.exe` when present, and fail clearly if registration cannot complete. Install from a permanent extracted folder; uninstall before moving it. Installing alongside an existing copy of ApkShellext2 is not supported because they register the same COM handler IDs.
 
 The original project referenced an untracked PFX and stale Google.Protobuf packages. This fork carries a dedicated strong-name `.snk` file for reproducible COM registration; **strong naming does not mean Authenticode publisher signing**. The unused Protobuf project references were removed, without deleting parser functionality.
 
