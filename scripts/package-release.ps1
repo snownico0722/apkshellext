@@ -72,14 +72,10 @@ function Write-Package([string]$name, [string[]]$relativePaths) {
 
 Write-Package -name 'ApkShellext2' -relativePaths $payload
 
-# Keep the upstream release convention of separate optional language packs.
+# Keep all other translations as separate optional language packs.
 foreach ($culture in @(Get-ChildItem -Path $BuildDirectory -Directory |
-        Where-Object { $_.Name -match '^[a-z]{2}-[A-Z]{2}
-    if (Test-Path (Join-Path $culture.FullName 'ApkShellext2.resources.dll')) {
-        Write-Package -name $culture.Name -relativePaths @($culture.Name)
-    }
-}
- -and $_.Name -ne 'zh-CN' })) {
+        Where-Object { $_.Name -match '^[a-z]{2}-[A-Z]{2}$' -and
+            $_.Name -ne 'zh-CN' })) {
     if (Test-Path (Join-Path $culture.FullName 'ApkShellext2.resources.dll')) {
         Write-Package -name $culture.Name -relativePaths @($culture.Name)
     }
