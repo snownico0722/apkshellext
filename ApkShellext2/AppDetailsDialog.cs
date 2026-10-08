@@ -3,7 +3,6 @@ using ApkShellext2.Properties;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Text;
 using System.Windows.Forms;
 
@@ -85,6 +84,7 @@ namespace ApkShellext2 {
                     Add(rows, Resources.detailsFileSize, Utility.getFileSize(path));
                     Add(rows, Resources.detailsModified, file.LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss"));
                 }
+                int metadataStart = rows.Count;
                 using (AppPackageReader reader = AppPackageReader.Read(path)) {
                     TryAdd(rows, Resources.detailsAppName, () => reader.AppName);
                     TryAdd(rows, Resources.detailsPackageName, () => reader.PackageName);
@@ -103,6 +103,8 @@ namespace ApkShellext2 {
                             () => android.getAttribute("manifest/application", "debuggable"));
                     }
                 }
+                if (rows.Count == metadataStart)
+                    Add(rows, Resources.detailsReadError, Resources.strReadFileFailed);
             } catch (Exception ex) {
                 Add(rows, Resources.detailsReadError, ex.Message);
             }
