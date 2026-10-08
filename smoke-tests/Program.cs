@@ -214,9 +214,19 @@ namespace ApkShellextSmokeTests {
                     new object[] { doc, new Size(32, 16) })) {
                     Color left = bitmap.GetPixel(4, 4);
                     Color right = bitmap.GetPixel(20, 4);
-                    if (left.R < 200 || left.G > 70 || right.G < 200 || right.R > 70)
-                        throw new Exception("Nested VectorDrawable colors/transform wrong: left=" +
-                            left + ", right=" + right);
+                    if (left.R < 200 || left.G > 70 || right.G < 200 || right.R > 70) {
+                        using (GraphicsPath debugPath = VectorDrawableRender.Convert2Path(
+                            "M0,0 L8,0 L8,8 L0,8 Z")) {
+                            int opaque = 0;
+                            for (int x = 0; x < bitmap.Width; x++)
+                                for (int y = 0; y < bitmap.Height; y++)
+                                    if (bitmap.GetPixel(x, y).A != 0) opaque++;
+                            throw new Exception("Nested VectorDrawable colors/transform wrong: left=" +
+                                left + ", right=" + right + ", opaque=" + opaque +
+                                ", pathPoints=" + debugPath.PointCount +
+                                ", pathBounds=" + debugPath.GetBounds());
+                        }
+                    }
                 }
             }
         }
