@@ -23,6 +23,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ShellFixtures.cs" />
+    <Compile Include="ShellInterop.cs" />
     <Compile Include="ShellComSmoke.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
