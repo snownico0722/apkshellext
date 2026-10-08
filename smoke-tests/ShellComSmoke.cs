@@ -53,7 +53,7 @@ namespace ApkShellextIntegration {
             for (int i = 0; i < classes.Length; i++) {
                 object instance = Native.Create(classes[i]);
                 try {
-                    Require(interfaces[i].IsInstanceOfType(instance),
+                    Require(Native.SupportsInterface(instance, interfaces[i].GUID),
                         "COM class is not exposing the expected Shell interface: " + classes[i]);
                 } finally { Native.Release(instance); }
             }
@@ -145,7 +145,7 @@ namespace ApkShellextIntegration {
             IntPtr large = IntPtr.Zero, small = IntPtr.Zero;
             try {
                 ((IPersistFile)instance).Load(path, 0);
-                var icon = (IExtractIconW)instance;
+                var icon = Native.AsInterface<IExtractIconW>(instance);
                 int index;
                 uint flags;
                 Native.Check(icon.GetIconLocation(0, new StringBuilder(260), 260,
@@ -189,14 +189,14 @@ namespace ApkShellextIntegration {
             try {
                 ((IPersistFile)instance).Load(path, 0);
                 string text;
-                Native.Check(((IQueryInfo)instance).GetInfoTip(0, out text),
+                Native.Check(Native.AsInterface<IQueryInfo>(instance).GetInfoTip(0, out text),
                     "IQueryInfo.GetInfoTip");
                 Require(!string.IsNullOrWhiteSpace(text),
                     "No tooltip text was returned: " + Path.GetFileName(path));
                 if (expectedName != null)
                     Require(text.Contains(expectedName), "Tooltip lost the APK app name: " + text);
                 int flags;
-                Native.Check(((IQueryInfo)instance).GetInfoFlags(out flags),
+                Native.Check(Native.AsInterface<IQueryInfo>(instance).GetInfoFlags(out flags),
                     "IQueryInfo.GetInfoFlags");
             } finally { Native.Release(instance); }
         }
@@ -208,10 +208,10 @@ namespace ApkShellextIntegration {
             object instance = Native.Create(Native.Thumbnail);
             IntPtr bitmapHandle = IntPtr.Zero;
             try {
-                Native.Check(((IInitializeWithStream)instance).Initialize(input, 0),
+                Native.Check(Native.AsInterface<IInitializeWithStream>(instance).Initialize(input, 0),
                     "IInitializeWithStream.Initialize");
                 int alpha;
-                int hr = ((IThumbnailProvider)instance).GetThumbnail(64, out bitmapHandle, out alpha);
+                int hr = Native.AsInterface<IThumbnailProvider>(instance).GetThumbnail(64, out bitmapHandle, out alpha);
                 if (shouldExist) {
                     Native.Check(hr, "IThumbnailProvider.GetThumbnail");
                     Require(bitmapHandle != IntPtr.Zero, "Thumbnail handler returned no HBITMAP.");
@@ -242,11 +242,11 @@ namespace ApkShellextIntegration {
                 data.SetFileDropList(filePaths);
                 dataPointer = Marshal.GetComInterfaceForObject(data,
                     typeof(System.Runtime.InteropServices.ComTypes.IDataObject));
-                ((IShellExtInit)instance).Initialize(IntPtr.Zero, dataPointer, IntPtr.Zero);
+                Native.AsInterface<IShellExtInit>(instance).Initialize(IntPtr.Zero, dataPointer, IntPtr.Zero);
 
                 nativeMenu = Native.CreatePopupMenu();
                 Require(nativeMenu != IntPtr.Zero, "CreatePopupMenu failed.");
-                int result = ((IContextMenu)instance).QueryContextMenu(nativeMenu,
+                int result = Native.AsInterface<IContextMenu>(instance).QueryContextMenu(nativeMenu,
                     0, 1, 0x7FFF, 0);
                 Native.Check(result, "IContextMenu.QueryContextMenu");
                 Require(Native.GetMenuItemCount(nativeMenu) > 0,
