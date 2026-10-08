@@ -73,7 +73,7 @@ namespace ApkShellextIntegration {
             CheckComActivation();
             string[] names = {
                 "sample.apk", "SAMPLE.APK", "sample.xapk", "sample.apks",
-                "sample.apkm", "sample.ipa", "sample.appx", "sample.appxbundle"
+                "sample.apkm", "sample.ipa", "sample.appx", "desktop.appx", "sample.appxbundle"
             };
             foreach (string filename in names) {
                 string path = ShellFixtures.PathFor(dir, filename);
