@@ -335,7 +335,7 @@ namespace ApkShellext2
 #else
             #region Use SVG lib
             try {
-                Svg.Pathing.SvgPathSegmentList l = SvgPathBuilder.Parse(pathdata);
+                Svg.Pathing.SvgPathSegmentList l = SvgPathBuilder.Parse(pathdata.AsSpan());
                 foreach (Svg.Pathing.SvgPathSegment s in l) {
                     s.AddToPath(path);
                 }
