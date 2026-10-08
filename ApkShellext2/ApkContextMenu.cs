@@ -358,9 +358,8 @@ namespace ApkShellext2 {
         }
 
         private void dumpManifest() {
-            foreach (var path in SelectedItemPaths) {
+            foreach (var path in SelectedItemPaths.Where(IsAndroidPackage))
                 dumpXML(path, "androidmanifest.xml");
-            }
         }
 
         public static string ReplaceVariables(string ori, AppPackageReader reader) {
@@ -462,14 +461,16 @@ namespace ApkShellext2 {
 
         private void gotoAppleStore() {
             foreach (var p in SelectedItemPaths) {
-                if (p.EndsWith(AppPackageReader.extIPA, StringComparison.OrdinalIgnoreCase)) {
-                    using (IpaReader reader = AppPackageReader.Read(p) as IpaReader) {
-                        try {
-                            Process.Start(string.Format(Properties.NonLocalizeResources.urlAppleStore, reader.AppID));
-                        } catch (Exception ex) {
-                            Log(Path.GetFileName(p) + ex.Message + Environment.NewLine + "Cannot get appid.");
-                        }
+                if (!p.EndsWith(AppPackageReader.extIPA, StringComparison.OrdinalIgnoreCase))
+                    continue;
+                try {
+                    using (IpaReader reader = (IpaReader)AppPackageReader.Read(p)) {
+                        string appId = reader.AppID;
+                        if (!string.IsNullOrWhiteSpace(appId))
+                            Process.Start(string.Format(NonLocalizeResources.urlAppleStore, appId));
                     }
+                } catch (Exception ex) {
+                    Log("Cannot open Apple App Store for " + Path.GetFileName(p) + ": " + ex.Message);
                 }
             }
         }
