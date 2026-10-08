@@ -15,6 +15,7 @@ namespace ApkShellextSmokeTests {
             try {
                 CheckBrokenFileDoesNotRemainOpen(Path.Combine(dir, "broken.apk"));
                 CheckSuccessfulReadDoesNotRemainOpen(Path.Combine(dir, "valid.apk"));
+                CheckInvalidBinaryManifestTerminates(Path.Combine(dir, "bad-manifest.apk"));
                 CheckFirstEntryUppercasePng(Path.Combine(dir, "first-entry.apk"));
                 CheckCallerStreamIsNotClosed();
                 CheckNestedAndroidPackages(dir);
@@ -22,7 +23,7 @@ namespace ApkShellextSmokeTests {
                     AppPackageReader.getAppType("sample.IPA") != AppPackageReader.AppType.iOSApp ||
                     AppPackageReader.getAppType("sample.APPX") != AppPackageReader.AppType.WindowsPhoneApp)
                     throw new Exception("Case-insensitive package detection failed");
-                Console.WriteLine("PASS: APK stream lifetime, first-entry PNG, lazy resources and bundles");
+                Console.WriteLine("PASS: APK streams, malformed binary XML, PNG icons and bundles");
                 return 0;
             } catch (Exception ex) {
                 Console.Error.WriteLine("FAIL: " + ex);
@@ -58,6 +59,44 @@ namespace ApkShellextSmokeTests {
                 if (resourceField == null || resourceField.GetValue(reader) != null)
                     throw new Exception("Resource table was loaded before it was requested");
             }
+            using (var exclusive = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) {
+            }
+        }
+
+        private static void CheckInvalidBinaryManifestTerminates(string path) {
+            // Binary XML header is 16 bytes total; the second chunk claims
+            // zero length. This used to loop forever because Seek did not advance.
+            byte[] manifest = new byte[16];
+            manifest[0] = 3;
+            manifest[2] = 8;
+            manifest[4] = 16;
+            using (var archive = new ZipArchive(
+                new FileStream(path, FileMode.Create, FileAccess.Write), ZipArchiveMode.Create)) {
+                using (Stream entry = archive.CreateEntry("androidmanifest.xml").Open())
+                    entry.Write(manifest, 0, manifest.Length);
+                WriteEntry(archive, "resources.arsc");
+            }
+
+            using (var reader = new ApkReader(path)) {
+                bool attributeRejected = false;
+                try {
+                    reader.getAttribute("manifest/application", "label");
+                } catch (InvalidDataException) {
+                    attributeRejected = true;
+                }
+                if (!attributeRejected)
+                    throw new Exception("Malformed Android manifest attribute loop did not stop");
+
+                bool dumpRejected = false;
+                try {
+                    reader.ExtractCompressedXml("androidmanifest.xml");
+                } catch (Exception ex) {
+                    dumpRejected = ex.Message.Contains("Invalid binary Android XML chunk size");
+                }
+                if (!dumpRejected)
+                    throw new Exception("Malformed Android manifest dump loop did not stop");
+            }
+
             using (var exclusive = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) {
             }
         }
