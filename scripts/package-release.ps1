@@ -11,6 +11,13 @@ if (-not (Test-Path (Join-Path $BuildDirectory 'ApkShellext2.dll'))) {
 }
 New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
 
+# Simplified Chinese belongs to the main assembly, never a zh-CN satellite.
+# Catch accidental Visual Studio designer / MSBuild metadata regressions.
+$chineseSatellite = Join-Path $BuildDirectory 'zh-CN\ApkShellext2.resources.dll'
+if (Test-Path -LiteralPath $chineseSatellite) {
+    throw 'Unexpected zh-CN satellite DLL: Simplified Chinese must be inside ApkShellext2.dll.'
+}
+
 $required = @('ApkShellext2.dll', 'install.bat', 'uninstall.bat', 'restart_explorer.bat')
 foreach ($name in $required) {
     if (-not (Test-Path (Join-Path $BuildDirectory $name))) {
@@ -59,7 +66,12 @@ Write-Package -name 'ApkShellext2' -relativePaths $payload
 
 # Keep the upstream release convention of separate optional language packs.
 foreach ($culture in @(Get-ChildItem -Path $BuildDirectory -Directory |
-        Where-Object { $_.Name -match '^[a-z]{2}-[A-Z]{2}$' })) {
+        Where-Object { $_.Name -match '^[a-z]{2}-[A-Z]{2}
+    if (Test-Path (Join-Path $culture.FullName 'ApkShellext2.resources.dll')) {
+        Write-Package -name $culture.Name -relativePaths @($culture.Name)
+    }
+}
+ -and $_.Name -ne 'zh-CN' })) {
     if (Test-Path (Join-Path $culture.FullName 'ApkShellext2.resources.dll')) {
         Write-Package -name $culture.Name -relativePaths @($culture.Name)
     }
