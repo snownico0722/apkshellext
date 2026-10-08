@@ -1124,6 +1124,7 @@ namespace ApkQuickReader
     {
         private ZipFile zip;
         private Stream inputStream;
+        private Stream zipInputStream;
         private bool ownsInputStream;
         private byte[] resources;
         private byte[] manifest;
@@ -1166,7 +1167,10 @@ namespace ApkQuickReader
             inputStream = stream;
             ownsInputStream = ownsStream;
             try {
-                zip = new ZipFile(stream);
+                // The ZIP constructor can close a stream if parsing fails before
+                // IsStreamOwner can be changed. Wrap externally-owned streams.
+                zipInputStream = ownsStream ? stream : new BorrowedStream(stream);
+                zip = new ZipFile(zipInputStream);
                 zip.IsStreamOwner = false;
 
                 ZipEntry entry = zip.GetEntry(AndroidManifestXML);
@@ -1196,10 +1200,40 @@ namespace ApkQuickReader
                     zip.Close();
             } finally {
                 zip = null;
+                if (zipInputStream != null && !ReferenceEquals(zipInputStream, inputStream))
+                    zipInputStream.Dispose();
+                zipInputStream = null;
                 if (ownsInputStream && inputStream != null)
                     inputStream.Dispose();
                 inputStream = null;
             }
+        }
+
+        // ZipFile's constructor owns its argument until initialization succeeds.
+        // This wrapper prevents it from closing a Windows-owned COM stream.
+        private sealed class BorrowedStream : Stream {
+            private readonly Stream inner;
+            public BorrowedStream(Stream inner) { this.inner = inner; }
+            public override bool CanRead { get { return inner.CanRead; } }
+            public override bool CanSeek { get { return inner.CanSeek; } }
+            public override bool CanWrite { get { return inner.CanWrite; } }
+            public override long Length { get { return inner.Length; } }
+            public override long Position {
+                get { return inner.Position; }
+                set { inner.Position = value; }
+            }
+            public override void Flush() { inner.Flush(); }
+            public override int Read(byte[] buffer, int offset, int count) {
+                return inner.Read(buffer, offset, count);
+            }
+            public override long Seek(long offset, SeekOrigin origin) {
+                return inner.Seek(offset, origin);
+            }
+            public override void SetLength(long length) { inner.SetLength(length); }
+            public override void Write(byte[] buffer, int offset, int count) {
+                inner.Write(buffer, offset, count);
+            }
+            // Intentionally do not dispose inner: it belongs to the caller.
         }
 
         public override AppPackageReader.AppType Type {
