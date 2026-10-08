@@ -54,6 +54,16 @@ jobs:
           $archive = @(Get-ChildItem -Path dist -File | Where-Object { $_.Name -match '^ApkShellext2\.(7z|zip)$' } | Select-Object -First 1)
           if ($archive.Count -ne 1) { throw "Missing primary release archive." }
           ./smoke-tests/Invoke-ShellIntegration.ps1 -ArchivePath $archive[0].FullName -TestAssembly ./smoke-tests/bin/Release/ShellIntegrationTests.dll
+      - name: Write SHA-256 archive checksums
+        shell: pwsh
+        run: |
+          $archives = @(Get-ChildItem -LiteralPath dist -File | Sort-Object Name)
+          if ($archives.Count -eq 0) { throw 'No archives available for checksumming.' }
+          $lines = @($archives | ForEach-Object {
+            $sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            '{0}  {1}' -f $sha256, $_.Name
+          })
+          $lines | Set-Content -LiteralPath 'dist/SHA256SUMS.txt' -Encoding utf8
       - name: Publish versioned GitHub Release
         shell: pwsh
         env:
