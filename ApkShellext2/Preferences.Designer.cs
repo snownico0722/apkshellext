@@ -70,9 +70,9 @@ namespace ApkShellext2 {
             lblInfoTipVariablesHint = NewLabel("");
             // A long list of tokens should wrap instead of widening the settings page.
             lblPatternVariablesHint.AutoSize = false;
-            lblPatternVariablesHint.Height = 42;
+            lblPatternVariablesHint.Height = 64;
             lblInfoTipVariablesHint.AutoSize = false;
-            lblInfoTipVariablesHint.Height = 42;
+            lblInfoTipVariablesHint.Height = 64;
 
             combLanguage = new System.Windows.Forms.ComboBox {
                 Name = "combLanguage",
