@@ -1801,7 +1801,7 @@ namespace ApkQuickReader
                         return "(0x" + data.ToString("X8")+")";
                     }
                 case DATA_TYPE.TYPE_INT_BOOLEAN:
-                    return (data == 0) ? ConstTrue : ConstFalse;
+                    return (data != 0) ? ConstTrue : ConstFalse;
                 case DATA_TYPE.TYPE_DIMENSION:
                     COMPLEX_TYPE t = (COMPLEX_TYPE)(data & 0xff);
                     string unit = (t == COMPLEX_TYPE.COMPLEX_UNIT_DIP) ? "dp" :
@@ -1848,6 +1848,9 @@ namespace ApkQuickReader
                     chunkType = (RES_TYPE)br.ReadInt16();
                     headerSize = br.ReadInt16();
                     int chunkSize = br.ReadInt32();
+                    if (chunkSize < 8 || headerSize < 8 || headerSize > chunkSize ||
+                        chunkPos + chunkSize > ms.Length)
+                        throw new InvalidDataException("Invalid Android chunk size");
                     if (chunkType == RES_TYPE.RES_STRING_POOL_TYPE) {
                         int stringcount = br.ReadInt32();
                         int stylecount = br.ReadInt32();
@@ -1898,6 +1901,9 @@ namespace ApkQuickReader
                     chunkType = (RES_TYPE)br.ReadInt16();
                     headerSize = br.ReadInt16();
                     int chunkSize = br.ReadInt32();
+                    if (chunkSize < 8 || headerSize < 8 || headerSize > chunkSize ||
+                        chunkPos + chunkSize > ms.Length)
+                        throw new InvalidDataException("Invalid Android chunk size");
 
                     if (chunkType == RES_TYPE.RES_XML_RESOURCE_MAP_TYPE) {
                         //Resource map
@@ -1957,6 +1963,7 @@ namespace ApkQuickReader
         /// <returns>the resource, in string format, if resource id not found, return null value</returns>
         private ApkResource QuickSearchResource(UInt32 id) {
             searchstack.Push(id);
+            try {
             ApkResource res = new ApkResource(id);
 
             byte[] resourceTable = ResourceTable;
@@ -1968,6 +1975,8 @@ namespace ApkQuickReader
                 long stringPoolPos = ms.Position;
                 ms.Seek(4, SeekOrigin.Current);
                 int stringPoolSize = br.ReadInt32();
+                if (stringPoolSize < 8 || stringPoolPos + stringPoolSize > ms.Length)
+                    throw new InvalidDataException("Invalid Android resource string pool size");
                 ms.Seek(stringPoolSize - 8, SeekOrigin.Current); // jump to the end
 
                 //Package chunk now
@@ -1976,6 +1985,9 @@ namespace ApkQuickReader
                     ms.Seek(2, SeekOrigin.Current); // jump type/headersize
                     int headerSize = br.ReadInt16();
                     int PackChunkSize = br.ReadInt32();
+                    if (PackChunkSize < headerSize || headerSize < 8 ||
+                        PackChunkPos + PackChunkSize > ms.Length)
+                        throw new InvalidDataException("Invalid Android resource package size");
                     int packID = br.ReadInt32();
 
                     if (packID != res.PackageID) { // check if the resource is in this pack
@@ -2004,6 +2016,10 @@ namespace ApkQuickReader
                             short chunkType = br.ReadInt16();
                             headerSize = br.ReadInt16();
                             int chunkSize = br.ReadInt32();
+                            if (chunkSize < 8 || headerSize < 8 || headerSize > chunkSize ||
+                                chunkPos + chunkSize > PackChunkPos + PackChunkSize ||
+                                chunkPos + chunkSize > ms.Length)
+                                throw new InvalidDataException("Invalid Android resource entry chunk size");
                             byte typeid;
 
                             if (chunkType == (short)RES_TYPE.RES_TABLE_TYPE_TYPE) {
@@ -2048,8 +2064,10 @@ namespace ApkQuickReader
                         } while (ms.Position < PackChunkPos + PackChunkSize);
                     }
                 }
-                searchstack.Pop();
                 return res;
+            }
+            } finally {
+                searchstack.Pop();
             }
         }
 
