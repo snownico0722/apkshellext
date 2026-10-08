@@ -221,10 +221,17 @@ namespace ApkShellextSmokeTests {
                             for (int x = 0; x < bitmap.Width; x++)
                                 for (int y = 0; y < bitmap.Height; y++)
                                     if (bitmap.GetPixel(x, y).A != 0) opaque++;
+                            Color controlPixel;
+                            using (Bitmap control = new Bitmap(32, 16)) {
+                                using (Graphics g = Graphics.FromImage(control))
+                                    g.FillPath(Brushes.Red, debugPath);
+                                controlPixel = control.GetPixel(4, 4);
+                            }
                             throw new Exception("Nested VectorDrawable colors/transform wrong: left=" +
                                 left + ", right=" + right + ", opaque=" + opaque +
                                 ", pathPoints=" + debugPath.PointCount +
-                                ", pathBounds=" + debugPath.GetBounds());
+                                ", pathBounds=" + debugPath.GetBounds() +
+                                ", directFillPixel=" + controlPixel);
                         }
                     }
                 }
