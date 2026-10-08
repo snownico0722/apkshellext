@@ -3,6 +3,7 @@ using System.Collections.Specialized;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.ComTypes;
 using System.Text;
@@ -36,6 +37,7 @@ namespace ApkShellextIntegration {
                     case "invalid": CheckInvalidPackages(workspace); break;
                     case "stress": CheckRepeatedRequests(workspace); break;
                     case "downloading": CheckDownloadInProgress(workspace); break;
+                    case "settings": CheckSettingsAndMenuActions(workspace); break;
                     default: throw new ArgumentException("Unknown test suite: " + suite);
                 }
                 Console.WriteLine("PASS: " + suite + " (" + IntPtr.Size * 8 + "-bit)");
@@ -277,6 +279,85 @@ namespace ApkShellextIntegration {
                 if (input != null && Marshal.IsComObject(input))
                     Marshal.FinalReleaseComObject(input);
             }
+        }
+
+        private static void CheckSettingsAndMenuActions(string dir) {
+            string path = ShellFixtures.PathFor(dir, "sample.apk");
+            const string settingsKey = @"SOFTWARE\ApkShellext2";
+            using (RegistryKey key = Registry.CurrentUser.CreateSubKey(settingsKey)) {
+                string oldThumbnail = (string)key.GetValue("EnableThumbnail", null);
+                string oldPattern = (string)key.GetValue("RenamePattern", null);
+                string oldReplace = (string)key.GetValue("ReplaceSpace", null);
+                string oldReplaceChar = (string)key.GetValue("ReplaceSpaceChar", null);
+                try {
+                    // Fresh installs must behave like the settings checkbox,
+                    // which defaults to True, without the value ever being saved.
+                    key.DeleteValue("EnableThumbnail", false);
+                    CheckThumbnail(path, true);
+                    key.SetValue("EnableThumbnail", "False");
+                    CheckThumbnail(path, false);
+                    key.SetValue("EnableThumbnail", "True");
+
+                    key.SetValue("ReplaceSpace", "True");
+                    key.SetValue("ReplaceSpaceChar", "--");
+                    key.SetValue("RenamePattern", "%AppName%");
+                    object menu = Native.Create(Native.Context);
+                    IntPtr dataPointer = IntPtr.Zero;
+                    try {
+                        var data = new DataObject();
+                        var paths = new StringCollection();
+                        paths.Add(path);
+                        data.SetFileDropList(paths);
+                        dataPointer = Marshal.GetComInterfaceForObject(data,
+                            typeof(System.Runtime.InteropServices.ComTypes.IDataObject));
+                        Native.Invoke<IShellExtInit>(menu, "Initialize",
+                            new object[] { IntPtr.Zero, dataPointer, IntPtr.Zero });
+                        Type type = menu.GetType();
+                        MethodInfo name = type.GetMethod("getNewFileName",
+                            BindingFlags.NonPublic | BindingFlags.Instance);
+                        string suggested = (string)name.Invoke(menu, new object[] { path });
+                        Require(Path.GetFileName(suggested) == "Shell--Integration--Test.apk",
+                            "Rename ignored the custom whitespace replacement: " + suggested);
+                        // The previous exception handler started after opening
+                        // the broken APK, letting the menu command crash.
+                        MethodInfo dump = type.GetMethod("dumpXML",
+                            BindingFlags.NonPublic | BindingFlags.Instance, null,
+                            new[] { typeof(string), typeof(string) }, null);
+                        dump.Invoke(menu, new object[] {
+                            ShellFixtures.PathFor(dir, "broken.apk"), "AndroidManifest.xml"
+                        });
+                    } finally {
+                        if (dataPointer != IntPtr.Zero) Marshal.Release(dataPointer);
+                        Native.Release(menu);
+                    }
+
+                    Type preferencesType = Type.GetType("ApkShellext2.Preferences, ApkShellext2", true);
+                    using (Form preferences = (Form)Activator.CreateInstance(preferencesType)) {
+                        FieldInfo field = preferencesType.GetField("txtRenamePattern",
+                            BindingFlags.NonPublic | BindingFlags.Instance);
+                        TextBox textbox = (TextBox)field.GetValue(preferences);
+                        textbox.Text = "custom";
+                        preferencesType.GetMethod("btnResetRenamePattern_Click",
+                            BindingFlags.NonPublic | BindingFlags.Instance).Invoke(
+                                preferences, new object[] { preferences, EventArgs.Empty });
+                        Require(textbox.Text == "%AppName%_%Version%",
+                            "Reset rename pattern did not restore its default");
+                    }
+                } finally {
+                    RestoreValue(key, "EnableThumbnail", oldThumbnail);
+                    RestoreValue(key, "RenamePattern", oldPattern);
+                    RestoreValue(key, "ReplaceSpace", oldReplace);
+                    RestoreValue(key, "ReplaceSpaceChar", oldReplaceChar);
+                }
+            }
+            Console.WriteLine("PASS: default thumbnail, custom rename spaces, reset and broken-APK menu command");
+        }
+
+        private static void RestoreValue(RegistryKey key, string name, string original) {
+            if (original == null)
+                key.DeleteValue(name, false);
+            else
+                key.SetValue(name, original);
         }
 
         private static void CheckContextMenu(string[] files) {
