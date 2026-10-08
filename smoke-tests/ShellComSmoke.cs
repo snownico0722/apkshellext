@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Reflection;
+using System.Threading;
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.ComTypes;
 using System.Text;
@@ -332,6 +333,35 @@ namespace ApkShellextIntegration {
                         Native.Release(menu);
                     }
 
+                    string savedLanguage = (string)key.GetValue("Language", null);
+                    var originalCulture = Thread.CurrentThread.CurrentCulture;
+                    var originalUICulture = Thread.CurrentThread.CurrentUICulture;
+                    try {
+                        Type utility = shellAssembly.GetType("ApkShellext2.Utility", true);
+                        MethodInfo localize = utility.GetMethod("Localize");
+                        Type resourceType = shellAssembly.GetType(
+                            "ApkShellext2.Properties.Resources", true);
+                        PropertyInfo menuLabel = resourceType.GetProperty("menuMain",
+                            BindingFlags.Static | BindingFlags.NonPublic);
+                        Require(menuLabel != null, "Missing translated menu label");
+
+                        key.SetValue("Language", "zh-CN");
+                        localize.Invoke(null, null);
+                        Require(Thread.CurrentThread.CurrentUICulture.Name == "zh-CN" &&
+                            (string)menuLabel.GetValue(null, null) == "APK文件助手",
+                            "The installed COM extension did not use embedded Chinese UI");
+
+                        key.SetValue("Language", "en-US");
+                        localize.Invoke(null, null);
+                        Require(Thread.CurrentThread.CurrentUICulture.Name == "en-US" &&
+                            (string)menuLabel.GetValue(null, null) == "APK Shell Extension",
+                            "The installed COM extension could not return to English UI");
+                    } finally {
+                        RestoreValue(key, "Language", savedLanguage);
+                        Thread.CurrentThread.CurrentCulture = originalCulture;
+                        Thread.CurrentThread.CurrentUICulture = originalUICulture;
+                    }
+
                     Type preferencesType = shellAssembly.GetType("ApkShellext2.Preferences", true);
                     using (Form preferences = (Form)Activator.CreateInstance(preferencesType)) {
                         FieldInfo field = preferencesType.GetField("txtRenamePattern",
@@ -351,7 +381,7 @@ namespace ApkShellextIntegration {
                     RestoreValue(key, "ReplaceSpaceChar", oldReplaceChar);
                 }
             }
-            Console.WriteLine("PASS: default thumbnail, custom rename spaces, reset and broken-APK menu command");
+            Console.WriteLine("PASS: embedded Chinese/English COM UI, thumbnail defaults, rename settings and broken-APK menu command");
         }
 
         private static void RestoreValue(RegistryKey key, string name, string original) {

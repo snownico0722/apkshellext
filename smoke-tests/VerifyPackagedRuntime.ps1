@@ -23,6 +23,11 @@ try {
         Expand-Archive -LiteralPath $ArchivePath -DestinationPath $installDir -Force
     }
 
+    # The main archive must not rely on a separately installed Chinese pack.
+    if (Test-Path -LiteralPath (Join-Path $installDir 'zh-CN')) {
+        throw 'Simplified Chinese must not be shipped as a satellite language directory.'
+    }
+
     $mainDll = Join-Path $installDir 'ApkShellext2.dll'
     if (-not (Test-Path -LiteralPath $mainDll)) { throw 'Missing shell COM assembly in the extracted release.' }
     foreach ($name in @('Svg.dll', 'QRCoder.dll', 'libwebp_x64.dll', 'libwebp_x86.dll')) {
@@ -48,10 +53,30 @@ using System;
 using System.Reflection;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Resources;
+using System.Globalization;
 
 public static class ApkShellextPackageProbe {
     public static void Verify(string mainDll, string apkFile) {
         Assembly assembly = Assembly.LoadFrom(mainDll);
+        const string embedded = "ApkShellext2.Properties.Resources_zh_CN_embedded.resources";
+        if (Array.IndexOf(assembly.GetManifestResourceNames(), embedded) < 0)
+            throw new Exception("The release assembly does not embed Simplified Chinese.");
+
+        Type uiResources = assembly.GetType("ApkShellext2.Properties.Resources", true);
+        PropertyInfo property = uiResources.GetProperty("ResourceManager",
+            BindingFlags.Static | BindingFlags.NonPublic);
+        ResourceManager labels = (ResourceManager)property.GetValue(null, null);
+        if (labels.GetType().Name != "EmbeddedChineseResourceManager")
+            throw new Exception("The release DLL uses the old satellite-only resource manager.");
+        string chineseLabel = labels.GetString("menuMain", CultureInfo.GetCultureInfo("zh-CN"));
+        string englishLabel = labels.GetString("menuMain", CultureInfo.GetCultureInfo("en-US"));
+        // This test script runs in legacy PowerShell 5.1, which may not read
+        // UTF-8 without a BOM correctly. Keep expected text ASCII-only here.
+        if (chineseLabel != "APK\u6587\u4EF6\u52A9\u624B" || englishLabel != "APK Shell Extension")
+            throw new Exception("The extracted release cannot switch languages: " +
+                chineseLabel + " / " + englishLabel);
+
         Type apkType = assembly.GetType("ApkQuickReader.ApkReader", true);
         using (IDisposable reader = (IDisposable)Activator.CreateInstance(
             apkType, new object[] { apkFile, "" })) {
@@ -89,7 +114,7 @@ public static class ApkShellextPackageProbe {
     Add-Type -TypeDefinition $probeSource -ReferencedAssemblies 'System.Drawing.dll' -ErrorAction Stop
     [ApkShellextPackageProbe]::Verify([string]$mainDll, [string]$apkPath)
 
-    Write-Host "PASS: extracted APK/ZIP, SVG and WebP runtime ($([IntPtr]::Size * 8)-bit)"
+    Write-Host "PASS: embedded zh-CN / English UI and APK/ZIP, SVG and WebP runtime ($([IntPtr]::Size * 8)-bit)"
 } finally {
     # Loaded framework assemblies may remain locked until process exit.
     Remove-Item -LiteralPath $workDir -Force -Recurse -ErrorAction SilentlyContinue

@@ -183,22 +183,49 @@ namespace ApkShellext2 {
         /// Resource Dll is buffered in static byte array in this class
         /// This is needed before any thread loading localize string
         /// </summary>
-        public static void Localize() {
-            //HookResolveResourceDll();
-            string lang = Utility.GetSetting("Language", "en-US");
-            if (lang != Thread.CurrentThread.CurrentUICulture.Name) {
-                try {
-                    Thread.CurrentThread.CurrentCulture = new CultureInfo(lang);
-                    Thread.CurrentThread.CurrentUICulture = new CultureInfo(lang);
-                } catch {
-                    lang = "en-US";
-                    Thread.CurrentThread.CurrentCulture = new CultureInfo(lang);
-                    Thread.CurrentThread.CurrentUICulture = new CultureInfo(lang);
-                } finally {
-                    Log(null, "Localize", "Set current Thread culture to " + Thread.CurrentThread.CurrentCulture.DisplayName);
+        // Resolve the user's first-run UI language only if there is no saved
+        // override. The embedded zh-CN translation is always available; other
+        // translations keep their optional satellite-DLL behavior.
+        internal static string SystemDefaultLanguage(CultureInfo windowsUICulture,
+            IEnumerable<CultureInfo> availableLanguages) {
+            string name = windowsUICulture == null ? "" : windowsUICulture.Name;
+            if (name.Equals("zh-CN", StringComparison.OrdinalIgnoreCase) ||
+                name.Equals("zh-SG", StringComparison.OrdinalIgnoreCase) ||
+                name.Equals("zh-Hans", StringComparison.OrdinalIgnoreCase) ||
+                name.StartsWith("zh-Hans-", StringComparison.OrdinalIgnoreCase))
+                return "zh-CN";
+
+            if (availableLanguages != null) {
+                foreach (CultureInfo language in availableLanguages) {
+                    if (language != null && language.Name.Equals(name,
+                        StringComparison.OrdinalIgnoreCase))
+                        return language.Name;
                 }
             }
-            
+            return "en-US";
+        }
+
+        public static void Localize() {
+            string lang = GetSetting("Language");
+            if (string.IsNullOrWhiteSpace(lang)) {
+                // CurrentUICulture follows the user's Windows display language;
+                // InstalledUICulture can still be the original OS language.
+                lang = SystemDefaultLanguage(CultureInfo.CurrentUICulture,
+                    getSupportedLanguages());
+            }
+
+            if (!lang.Equals(Thread.CurrentThread.CurrentUICulture.Name,
+                StringComparison.OrdinalIgnoreCase)) {
+                try {
+                    var culture = CultureInfo.GetCultureInfo(lang);
+                    Thread.CurrentThread.CurrentCulture = culture;
+                    Thread.CurrentThread.CurrentUICulture = culture;
+                } catch (CultureNotFoundException) {
+                    var english = CultureInfo.GetCultureInfo("en-US");
+                    Thread.CurrentThread.CurrentCulture = english;
+                    Thread.CurrentThread.CurrentUICulture = english;
+                }
+            }
         }
 
         /// <summary>
@@ -207,12 +234,14 @@ namespace ApkShellext2 {
         /// <returns></returns>
         public static CultureInfo[] getSupportedLanguages() {
             List<CultureInfo> result = new List<CultureInfo>();
-            result.Add(new CultureInfo("en-US")); //default is en-US
+            result.Add(new CultureInfo("en-US"));
+            result.Add(new CultureInfo("zh-CN")); // compiled into ApkShellext2.dll
             DirectoryInfo dir = new DirectoryInfo(getInstallPath());
             DirectoryInfo[] sub = dir.GetDirectories("??-??");
             foreach (var d in sub) {
                 FileInfo[] f = d.GetFiles("ApkShellext2.resources.dll");
-                if (f.Length == 1)
+                if (f.Length == 1 && !d.Name.Equals("zh-CN",
+                    StringComparison.OrdinalIgnoreCase))
                     result.Add(new CultureInfo(d.Name));
             }
             return result.ToArray();

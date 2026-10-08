@@ -115,6 +115,7 @@
       <DesignTime>True</DesignTime>
       <DependentUpon>NonLocalizeResources.resx</DependentUpon>
     </Compile>
+    <Compile Include="Properties\EmbeddedChineseResourceManager.cs" />
     <Compile Include="Properties\Resources1.Designer.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
@@ -436,7 +437,11 @@
       <DependentUpon>Preferences.cs</DependentUpon>
       <SubType>Designer</SubType>
     </EmbeddedResource>
+    <!-- This culture is compiled as a neutral resource in the primary DLL.
+         WithCulture=false prevents creation of zh-CN/ApkShellext2.resources.dll. -->
     <EmbeddedResource Include="Properties\Resources.zh-CN.resx">
+      <WithCulture>false</WithCulture>
+      <LogicalName>ApkShellext2.Properties.Resources_zh_CN_embedded.resources</LogicalName>
       <SubType>Designer</SubType>
     </EmbeddedResource>
     <EmbeddedResource Include="SharpShell\SharpShell\SharpShell\SharpPreviewHandler\PreviewHandlerHost.resx">

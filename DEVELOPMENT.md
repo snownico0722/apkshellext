@@ -13,6 +13,12 @@ This fork follows the upstream **ApkShellext2** branch. Work is incremental: **k
 
 SharpZipLib 1.4.2 is restored as a managed NuGet dependency; release archives include the resolved runtime DLLs alongside the Shell assembly. Use `/restore` on Windows builds.
 
+## Built-in Simplified Chinese
+
+The `Properties/Resources.zh-CN.resx` translation is compiled as a **neutral embedded resource inside `ApkShellext2.dll`**, with a dedicated `EmbeddedChineseResourceManager`. It does not produce or require `zh-CN/ApkShellext2.resources.dll`. On first run the default interface language follows the Windows display language when its translation is available (Simplified Chinese for `zh-CN` / `zh-SG`, otherwise English or an installed optional language). Explicit language choices in Settings take precedence.
+
+The main release archive includes Chinese automatically. Other languages remain standard optional satellite assemblies and separate language archives. `smoke-tests/Program.cs` verifies the manifest resource and language selection, and `smoke-tests/VerifyPackagedRuntime.ps1` checks both x86/x64 unpacked release behavior. `scripts/package-release.ps1` refuses unexpected Chinese satellite DLL output.
+
 The original installer/uninstaller scripts remain available. They now run both 32-bit and 64-bit `RegAsm.exe` when present, and fail clearly if registration cannot complete. Install from a permanent extracted folder; uninstall before moving it. Installing alongside an existing copy of ApkShellext2 is not supported because they register the same COM handler IDs.
 
 The original project referenced an untracked PFX and stale Google.Protobuf packages. This fork carries a dedicated strong-name `.snk` file for reproducible COM registration; **strong naming does not mean Authenticode publisher signing**. The unused Protobuf project references were removed, without deleting parser functionality.
