@@ -5,6 +5,9 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.Drawing.Drawing2D;
 using System.Reflection;
+using System.Resources;
+using System.Globalization;
+using System.Collections.Generic;
 using ApkQuickReader;
 using ApkShellext2;
 
@@ -19,6 +22,7 @@ namespace ApkShellextSmokeTests {
                 CheckBooleanAndResourceGuards(Path.Combine(dir, "resources.apk"));
                 CheckInvalidBinaryManifestTerminates(Path.Combine(dir, "bad-manifest.apk"));
                 CheckFirstEntryUppercasePng(Path.Combine(dir, "first-entry.apk"));
+                CheckEmbeddedChineseResources();
                 CheckVectorPathRendering();
                 CheckNestedVectorGroups(Path.Combine(dir, "valid.apk"));
                 CheckUpdateVersionParsing();
@@ -121,6 +125,62 @@ namespace ApkShellextSmokeTests {
             using (var exclusive = new FileStream(path, FileMode.Open,
                 FileAccess.ReadWrite, FileShare.None)) {
             }
+        }
+
+        private static void CheckEmbeddedChineseResources() {
+            Assembly assembly = typeof(AppPackageReader).Assembly;
+            const string embeddedName =
+                "ApkShellext2.Properties.Resources_zh_CN_embedded.resources";
+            if (Array.IndexOf(assembly.GetManifestResourceNames(), embeddedName) < 0)
+                throw new Exception("The main DLL does not contain embedded zh-CN UI resources");
+
+            Type type = assembly.GetType("ApkShellext2.Properties.Resources", true);
+            PropertyInfo prop = type.GetProperty("ResourceManager",
+                BindingFlags.Static | BindingFlags.NonPublic);
+            if (prop == null)
+                throw new Exception("Missing localized ResourceManager property");
+            ResourceManager manager = (ResourceManager)prop.GetValue(null, null);
+            if (manager.GetType().Name != "EmbeddedChineseResourceManager")
+                throw new Exception("Auto-generated resource initializer bypasses embedded zh-CN");
+
+            string chinese = manager.GetString("menuMain",
+                CultureInfo.GetCultureInfo("zh-CN"));
+            string english = manager.GetString("menuMain",
+                CultureInfo.GetCultureInfo("en-US"));
+            if (chinese != "APK文件助手" || english != "APK Shell Extension")
+                throw new Exception("Chinese or English UI strings were not resolved correctly: " +
+                    chinese + " / " + english);
+            if (manager.GetString("btnOK", CultureInfo.GetCultureInfo("zh-CN")) != "确定")
+                throw new Exception("The embedded Simplified Chinese button label is missing");
+
+            MethodInfo defaultLanguage = typeof(Utility).GetMethod("SystemDefaultLanguage",
+                BindingFlags.Static | BindingFlags.NonPublic);
+            if (defaultLanguage == null)
+                throw new Exception("No first-run language selection method was found");
+
+            IEnumerable<CultureInfo> available = new[] {
+                CultureInfo.GetCultureInfo("en-US"),
+                CultureInfo.GetCultureInfo("zh-CN"),
+                CultureInfo.GetCultureInfo("ja-JP")
+            };
+            foreach (var pair in new[] {
+                new { Os = "zh-CN", Expected = "zh-CN" },
+                new { Os = "zh-SG", Expected = "zh-CN" },
+                new { Os = "en-US", Expected = "en-US" },
+                new { Os = "ja-JP", Expected = "ja-JP" },
+                new { Os = "fr-FR", Expected = "en-US" }
+            }) {
+                var detected = (string)defaultLanguage.Invoke(null, new object[] {
+                    CultureInfo.GetCultureInfo(pair.Os), available
+                });
+                if (detected != pair.Expected)
+                    throw new Exception("Unexpected UI locale: " + pair.Os +
+                        " resolved as " + detected);
+            }
+            CultureInfo[] selectable = Utility.getSupportedLanguages();
+            if (Array.FindIndex(selectable, language => language.Name == "zh-CN") < 0)
+                throw new Exception("Preferences does not offer embedded Simplified Chinese");
+            Console.WriteLine("PASS: Chinese strings embedded in main DLL; UI locale detection and English fallback");
         }
 
         private static void CheckBrokenFileDoesNotRemainOpen(string path) {
