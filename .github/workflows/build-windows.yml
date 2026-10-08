@@ -52,19 +52,7 @@ jobs:
       - name: Verify standalone release dependencies in 64-bit and 32-bit .NET Framework
         shell: pwsh
         run: |
-          $archive = @(Get-ChildItem -Path dist -File | Where-Object { $_.Name -match '^ApkShellext2\.(7z|zip)
-        uses: actions/upload-artifact@v4
-        with:
-          name: apkshellext2-release-archives
-          path: dist/*
-          if-no-files-found: error
-      - name: Keep build output for manual Explorer smoke tests
-        uses: actions/upload-artifact@v4
-        with:
-          name: apkshellext2-windows-release
-          path: ApkShellext2/bin/Release/
-          if-no-files-found: error
- } | Select-Object -First 1)
+          $archive = @(Get-ChildItem -Path dist -File | Where-Object { $_.Name -match '^ApkShellext2\.(7z|zip)$' } | Select-Object -First 1)
           if ($archive.Count -ne 1) { throw "Missing primary release archive." }
           $script = "./smoke-tests/VerifyPackagedRuntime.ps1"
           & "$env:WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $script -ArchivePath $archive[0].FullName
