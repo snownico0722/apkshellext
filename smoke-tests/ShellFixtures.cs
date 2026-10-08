@@ -38,6 +38,7 @@ namespace ApkShellextIntegration {
 
             File.WriteAllBytes(PathFor(directory, "sample.ipa"), CreateIpa(png));
             File.WriteAllBytes(PathFor(directory, "sample.appx"), CreateAppx(png));
+            File.WriteAllBytes(PathFor(directory, "desktop.appx"), CreateDesktopAppx(png));
             File.WriteAllBytes(PathFor(directory, "sample.appxbundle"), CreateAppxBundle(CreateAppx(png)));
             foreach (string ext in new[] { ".ipa", ".appx", ".appxbundle" })
                 File.WriteAllBytes(PathFor(directory, "invalid" + ext), CreateUnrelatedZip());
@@ -216,6 +217,21 @@ namespace ApkShellextIntegration {
                 "<Identity Name=\"org.apkshellext.appx\" Version=\"1.0.0.0\" Publisher=\"CN=CI\" />" +
                 "<Properties><DisplayName>Shell Windows Test</DisplayName><Logo>logo.png</Logo></Properties>" +
                 "<mp:PhoneIdentity PhoneProductId=\"CI-TEST\" /></Package>";
+            using (var ms = new MemoryStream()) {
+                using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, true)) {
+                    Add(zip, "AppxManifest.xml", Encoding.UTF8.GetBytes(xml));
+                    Add(zip, "logo.png", png);
+                }
+                return ms.ToArray();
+            }
+        }
+
+        private static byte[] CreateDesktopAppx(byte[] png) {
+            // A legal desktop APPX does not have a mobile PhoneIdentity node.
+            const string xml = "<Package><Identity Name='org.apkshellext.desktop' " +
+                "Version='1.0.0.0' Publisher='CN=CI' />" +
+                "<Properties><DisplayName>Shell Windows Test</DisplayName>" +
+                "<Logo>logo.png</Logo></Properties></Package>";
             using (var ms = new MemoryStream()) {
                 using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, true)) {
                     Add(zip, "AppxManifest.xml", Encoding.UTF8.GetBytes(xml));
