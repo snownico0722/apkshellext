@@ -38,26 +38,41 @@ namespace ApkShellext2 {
 
         public AppxReader(Stream stream) {
             FileName = "";
-            zip = new ZipFile(stream);
-            Extract();
+            openStream(stream);
         }
 
         public AppxReader(string path) {
             FileName = path;
-            zip = new ZipFile(FileName);
-            Extract();
+            FileStream stream = new FileStream(path, FileMode.Open, FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete);
+            try {
+                openStream(stream);
+            } catch {
+                stream.Dispose();
+                throw;
+            }
+        }
+
+        private void openStream(Stream stream) {
+            try {
+                zip = new ZipFile(stream);
+                Extract();
+            } catch {
+                if (zip != null)
+                    zip.Close();
+                throw;
+            }
         }
 
         public void Extract() {
             ZipEntry en = zip.GetEntry(AppxManifestXml);
             if (en == null)
                 throw new EntryPointNotFoundException("cannot find " + AppxManifestXml);
-            byte[] xmlbytes = new byte[en.Size];
-            zip.GetInputStream(en).Read(xmlbytes, 0, (int)en.Size);
-
             XmlDocument xml = new XmlDocument();
             xml.XmlResolver = null;
-            xml.Load(zip.GetInputStream(en));
+            using (Stream manifestStream = zip.GetInputStream(en)) {
+                xml.Load(manifestStream);
+            }
 
             XmlElement packageNode = xml.DocumentElement;
             XmlElement Identity = packageNode[elemIdentity];
