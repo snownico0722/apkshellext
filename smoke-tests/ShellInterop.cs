@@ -2,6 +2,8 @@ using System;
 using System.Collections.Specialized;
 using System.Drawing;
 using System.IO;
+using System.Linq;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.ComTypes;
 using System.Text;
@@ -132,18 +134,28 @@ namespace ApkShellextIntegration {
             }
         }
 
-        internal static T AsInterface<T>(object instance) where T : class {
+        // RegAsm-hosted managed COM objects are unwrapped by their home CLR.
+        // Another test assembly's [ComImport] declaration can QI successfully
+        // but cannot be cast to the *different managed interface type*. Resolve
+        // the actual registered interface by IID and invoke that exact contract.
+        internal static int Invoke<T>(object instance, string member, object[] args) where T : class {
             Guid iid = typeof(T).GUID;
-            IntPtr unknown = Marshal.GetIUnknownForObject(instance);
-            IntPtr requested = IntPtr.Zero;
-            try {
-                Check(Marshal.QueryInterface(unknown, ref iid, out requested),
-                    "QueryInterface(" + typeof(T).Name + ")");
-                return (T)Marshal.GetTypedObjectForIUnknown(requested, typeof(T));
-            } finally {
-                if (requested != IntPtr.Zero) Marshal.Release(requested);
-                Marshal.Release(unknown);
+            Type actualInterface = instance.GetType().GetInterfaces()
+                .FirstOrDefault(t => t.GUID == iid);
+            if (actualInterface == null)
+                throw new InvalidOperationException("COM interface not present: " + iid);
+            MethodInfo method = actualInterface.GetMethod(member);
+            if (method == null)
+                throw new MissingMethodException(actualInterface.FullName, member);
+            ParameterInfo[] parameters = method.GetParameters();
+            for (int i = 0; i < args.Length; i++) {
+                Type valueType = parameters[i].ParameterType;
+                if (valueType.IsByRef) valueType = valueType.GetElementType();
+                if (valueType.IsEnum && args[i] != null && !args[i].GetType().IsEnum)
+                    args[i] = Enum.ToObject(valueType, args[i]);
             }
+            object result = method.Invoke(instance, args);
+            return result == null ? 0 : Convert.ToInt32(result);
         }
 
         internal static object Create(Guid clsid) {
